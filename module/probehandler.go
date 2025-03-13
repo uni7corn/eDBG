@@ -22,20 +22,20 @@ func CreateProbeHandler(listener IEventListener) *ProbeHandler {
 
 func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
     probes := []*manager.Probe{}
-    var probe *manager.Probe
     usedCount := 0
     for i, brk := range brks {
         if brk.enable != true {
             continue
         }
+        var probe *manager.Probe
         usedCount++
         if usedCount > 20 {
             return fmt.Errorf("setupManager: Failed to Set Breakpoint: %x. Breakpoint count exceed 20.", brk.offset)
         }
         sym := utils.RandStringBytes(8)
         probe = &manager.Probe{
-            Section:          fmt.Sprintf("uprobe/probe_%d", i),
-            EbpfFuncName:     fmt.Sprintf("probe_%d", i),
+            Section:          fmt.Sprintf("uprobe/probe_%d", i+1),
+            EbpfFuncName:     fmt.Sprintf("probe_%d", i+1),
             AttachToFuncName: sym,
             RealFilePath:     brk.libInfo.RealFilePath,
             BinaryPath:       brk.libInfo.LibPath,
@@ -76,11 +76,12 @@ func (this *ProbeHandler) Run() error {
     if err = this.bpfManager.Start(); err != nil {
         return fmt.Errorf("ProbeHandler.Run(): couldn't start bootstrap manager %v .", err)
     }
-
+    // fmt.Println("Module Running...")
     return nil
 }
 
 func (this *ProbeHandler) Stop() error {
+    // fmt.Println("Module Stopping...")
     return this.bpfManager.Stop(manager.CleanAll)
 }
 

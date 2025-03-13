@@ -35,7 +35,7 @@ func CreateLibrary(process *Process, libName string) (*LibraryInfo, error) {
 			return &LibraryInfo{}, err
 		}
 	}
-	fmt.Printf("Found library at %s", libInfo.RealFilePath)
+	fmt.Printf("Found library at %s\n", libInfo.RealFilePath)
 	return libInfo, nil
 }
 

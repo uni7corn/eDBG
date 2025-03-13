@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"strconv"
+	"syscall"
 	"bufio"
 )
 
@@ -15,49 +16,59 @@ type Client struct {
 	Library *controller.LibraryInfo
 	Process *controller.Process
 	BrkManager *module.BreakPointManager
+	Incoming chan bool
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager) *Client {
-	return &Client{library, process, brkManager}
+	return &Client{library, process, brkManager, make(chan bool, 1)}
 }
 
 func (this *Client) Run() {
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("(eDBG) ")
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+	go func() {
+		for {
+			<- this.Incoming
+			scanner := bufio.NewScanner(os.Stdin)
 			fmt.Print("(eDBG) ")
-			continue
+		loop:
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if line == "" {
+					fmt.Print("(eDBG) ")
+					continue
+				}
+
+				parts := strings.Fields(line)
+				cmd := parts[0]
+				args := parts[1:]
+
+				switch cmd {
+				case "break", "b":
+					this.HandleBreak(args)
+				case "step", "s":
+					this.HandleStep()
+				case "next", "n":
+					this.HandleNext()
+				case "x":
+					this.HandleMemory(args)
+				case "quit", "q":
+					this.CleanUp()
+					syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+					return
+				case "continue", "c":
+					this.HandleContinue()
+					break loop
+				default:
+					fmt.Println("Unknown command:", cmd)
+				}
+
+				fmt.Print("(eDBG) ")
+			}
 		}
-
-		parts := strings.Fields(line)
-		cmd := parts[0]
-		args := parts[1:]
-
-		switch cmd {
-		case "break", "b":
-			this.HandleBreak(args)
-		case "step", "s":
-			this.HandleStep()
-		case "next", "n":
-			this.HandleNext()
-		case "x":
-			this.HandleMemory(args)
-		case "quit", "q":
-			this.CleanUp()
-			os.Exit(0)
-		case "continue", "c":
-			this.HandleContinue()
-		default:
-			fmt.Println("Unknown command:", cmd)
-		}
-
-		fmt.Print("(eDBG) ")
-	}
+	}()
 }
 
 func (this *Client) CleanUp() {
+	this.Process.Continue()
 	this.BrkManager.Stop()
 }
 
@@ -69,6 +80,7 @@ func (this *Client) HandleBreak(args []string) {
 	}
 
 	offset, err := strconv.ParseUint(args[0], 0, 64)
+	// fmt.Printf("Try to set breakpoint at 0x%x\n", offset)
 	if err != nil {
 		fmt.Printf("Bad offset: %v", err)
 		return
@@ -77,8 +89,9 @@ func (this *Client) HandleBreak(args []string) {
 	if err := this.BrkManager.AddBreakPoint(*this.Library, offset); err != nil {
 		fmt.Printf("Failed to set breakpoint: %v", err)
 	} else {
-		fmt.Printf("Breakpoint at 0x%x", offset)
+		fmt.Printf("Breakpoint at 0x%x\n", offset)
 	}
+	// fmt.Printf("Breakpoint at 0x%x!!", offset)
 }
 
 func (this *Client) HandleContinue() {

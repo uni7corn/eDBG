@@ -3,7 +3,7 @@ package main
 import (
     "eDBG/cli"
 	"errors"
-    "bufio"
+    // "bufio"
 	"flag"
 	// "log"
 	"os"
@@ -81,23 +81,25 @@ func main() {
 		fmt.Println("Module start Failed: ", err)
 		os.Exit(1)
 	}
-	fmt.Println("Module started. Press q to quit")
+	fmt.Println("Module started. Press Ctrl+C to quit")
 
-    go func() {
-        scanner := bufio.NewScanner(os.Stdin)
-        for {
-            scanner.Scan()
-            err := scanner.Err()
-            if err != nil {
-                fmt.Printf("get input from console failed, err:%v", err)
-                syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-            }
-            input_text := scanner.Text()
-            if input_text == "q" {
-                syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-            }
-        }
-    }()
+    // go func(){
+    //     scanner := bufio.NewScanner(os.Stdin)
+    //     for {
+    //         scanner.Scan()
+    //         err := scanner.Err()
+    //         if err != nil {
+    //             fmt.Printf("get input from console failed, err:%v", err)
+    //             syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+    //         }
+    //         input_text := scanner.Text()
+    //         if input_text == "q" {
+    //             syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+    //         }
+    //     }
+    // }()
+    client.Run()
+    <-stopper
 }
 
 

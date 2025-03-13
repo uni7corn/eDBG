@@ -11,9 +11,10 @@ import(
 )
 
 type EventContext struct {
-	regs []uint64
-	pc uint64
-	sp uint64
+	Regs []uint64
+	LR uint64
+	PC uint64
+	SP uint64
 }
 
 type EventListener struct {
@@ -50,24 +51,31 @@ func getHostByteOrder() binary.ByteOrder {
 
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
 	bo := this.ByteOrder
-	pid := bo.Uint32(data[0:4])
+	pid := bo.Uint32(data[4:8])
+	fmt.Printf("Suspended on pid: %d\n", pid)
 	this.process.StoppedPID(pid)
 	context := &EventContext{}
-	for i := 4; i < 4+8 * 32; i += 8 {
-		context.regs = append(context.regs, bo.Uint64(data[i:i+8]))
+	for i := 12; i < 12+8*30; i += 8 {
+		context.Regs = append(context.Regs, bo.Uint64(data[i:i+8]))
 	}
-	context.pc = bo.Uint64(data[4+8*32:4+8*33])
-	context.sp = bo.Uint64(data[4+8*33:4+8*34])
+	context.LR = bo.Uint64(data[12+8*30:12+8*31])
+	context.SP = bo.Uint64(data[12+8*31:12+8*32])
+	context.PC = bo.Uint64(data[12+8*32:12+8*33])
 	context.Print()
-	this.client.Run()
+	this.client.Incoming <- true
 }
 
 func (this *EventContext) Print() {
-	fmt.Println("─────────[ REGISTERS ]─────────")
-	for i, reg := range(this.regs) {
-		fmt.Printf("X%d\t%x\n", i, reg)
+	fmt.Println("──────────────────────────────────────[ REGISTERS ]──────────────────────────────────────")
+	for i, reg := range(this.Regs) {
+		if (i+1)%3 != 0 {
+			fmt.Printf("X%d\t%16X\t", i, reg)
+		} else {
+			fmt.Printf("X%d\t%16X\n", i, reg)
+		}
 	}
-	fmt.Printf("PC\t%x\n", this.pc)
-	fmt.Printf("SP\t%x\n", this.sp)
-	fmt.Println("───────────────────────────────")
+	fmt.Printf("LR\t%16X\t", this.LR)
+	fmt.Printf("SP\t%16X\t", this.SP)
+	fmt.Printf("PC\t%16X\n", this.PC)
+	fmt.Println("─────────────────────────────────────────────────────────────────────────────────────────")
 }

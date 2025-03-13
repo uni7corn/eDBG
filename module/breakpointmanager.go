@@ -27,6 +27,9 @@ func CreateBreakPointManager(listener IEventListener) *BreakPointManager {
 }
 
 func (this *BreakPointManager) CreateBreakPoint(libInfo controller.LibraryInfo, offset uint64) error {
+	if offset%4 != 0 {
+		return fmt.Errorf("Invalid address: %x", offset)
+	}
 	for _, brk := range this.breakPoints {
 		if brk.libInfo.LibName == libInfo.LibName && offset == brk.offset {
 			if brk.enable == false {
@@ -56,6 +59,7 @@ func (this *BreakPointManager) SetupProbe() error {
 		return err
 	}
 	err = this.probeHandler.Run()
+	// fmt.Println("probe is running..")
 	if err != nil {
 		return err
 	}
@@ -74,14 +78,21 @@ func (this *BreakPointManager) Start(libInfo controller.LibraryInfo, brkAddrs []
 }
 
 func (this *BreakPointManager) AddBreakPoint(libInfo controller.LibraryInfo, offset uint64) error {
+	if offset%4 != 0 {
+		return fmt.Errorf("Invalid address: %x", offset)
+	}
 	err := this.probeHandler.Stop()
 	if err != nil {
 		return err
 	}
+	// fmt.Println("Module Stopped.")
 	err = this.CreateBreakPoint(libInfo, offset)
 	if err != nil {
 		return fmt.Errorf("Create Breakpoints Failed: %v, skipped.", err)
 	}
+	// for _, brk := range this.breakPoints {
+	// 	fmt.Printf("Breakpoint at %x\n", brk.offset)
+	// }
 	return this.SetupProbe()
 }
 
