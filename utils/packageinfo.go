@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"ioutil"
-	"errors"
+	"io/ioutil"
 	"fmt"
+	"strings"
+	"strconv"
 )
 
 type PackageInfo struct {

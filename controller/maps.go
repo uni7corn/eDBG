@@ -1,13 +1,14 @@
-package utils
+package controller
 
 import (
-	"os"
-	"ioutil"
-	"string"
+	"io/ioutil"
+	"strings"
+    "errors"
 	"fmt"
+    "golang.org/x/exp/slices"
 )
 
-type LibInfo struct {
+type Segment struct {
     baseAddr uint64
     off      uint64
     endAddr  uint64
@@ -17,10 +18,10 @@ type LibInfo struct {
 
 type ProcMaps struct {
 	pid uint32
-	libInfos []*LibInfo
+	segments []*Segment
 }
 
-func (this *LibInfo) ParseLib() {
+func (this *Segment) ParseLib() {
     parts := strings.Split(this.libPath, "/")
     this.libName = parts[len(parts)-1]
 }
@@ -30,8 +31,9 @@ func GetProcMaps(pid uint32) (*ProcMaps, error) {
 	procMaps.pid = pid
 	err := procMaps.ReadMaps()
 	if err != nil {
-		return ProcMaps{}, err
+		return &ProcMaps{}, err
 	}
+    return procMaps, nil
 }
 
 func (this *ProcMaps) ReadMaps() error {
@@ -46,7 +48,7 @@ func (this *ProcMaps) ReadMaps() error {
     return this.ParseMapsContent(content)
 }
 
-func (this *ProcMaps) ParseMapsContent(content string) error {
+func (this *ProcMaps) ParseMapsContent(content []byte) error {
 	var (
         seg_start  uint64
         seg_end    uint64
@@ -56,7 +58,7 @@ func (this *ProcMaps) ParseMapsContent(content string) error {
         inode      uint64
         seg_path   string
     )
-	libInfos := []*LibInfo{}
+	this.segments = []*Segment{}
 
     for _, line := range strings.Split(string(content), "\n") {
         reader := strings.NewReader(line)
@@ -65,14 +67,14 @@ func (this *ProcMaps) ParseMapsContent(content string) error {
             if seg_path == "" {
                 seg_path = fmt.Sprintf("UNNAMED_0x%x", seg_start)
             }
-            new_info := LibInfo{
+            new_info := &Segment{
                 baseAddr: seg_start,
                 off:      seg_offset,
                 endAddr:  seg_end,
                 libPath:  seg_path,
             }
             new_info.ParseLib()
-			this.libInfos := append(this.libInfos, new_info)
+			this.segments = append(this.segments, new_info)
         }
     }
     return nil
@@ -80,7 +82,7 @@ func (this *ProcMaps) ParseMapsContent(content string) error {
 
 func (this *ProcMaps) GetLibSearchPaths() []string {
 	search_paths := []string{}
-	for _, libInfo := range this.libInfos {
+	for _, libInfo := range this.segments {
 		if strings.HasPrefix(libInfo.libPath, "/") && strings.HasSuffix(libInfo.libPath, ".so") {
             items := strings.Split(libInfo.libPath, "/")
             lib_search_path := strings.Join(items[:len(items)-1], "/")
