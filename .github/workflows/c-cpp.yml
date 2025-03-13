@@ -21,9 +21,3 @@ jobs:
 
     - name: Build
       run: make clean && make
-
-    - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: eDBG_arm64
-        path: bin/eDBG_arm64
