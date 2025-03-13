@@ -5,7 +5,7 @@ import(
 	"encoding/binary"
 	"unsafe"
 	"eDBG/controller"
-	// "eDBG/utils"
+	"eDBG/utils"
 	"eDBG/cli"
 	"fmt"
 )
@@ -18,9 +18,11 @@ type EventContext struct {
 }
 
 type EventListener struct {
+	pid uint32
 	client *cli.Client
 	process *controller.Process
 	ByteOrder binary.ByteOrder
+	Incomingdata chan []byte
 }
 
 // type Event struct {
@@ -29,7 +31,7 @@ type EventListener struct {
 // }
 
 func CreateEventListener(process *controller.Process) *EventListener {
-	return &EventListener{process: process, ByteOrder: getHostByteOrder()}
+	return &EventListener{process: process, ByteOrder: getHostByteOrder(), Incomingdata: make(chan []byte, 512)}
 }
 
 func (this *EventListener) SetupClient(client *cli.Client) {
@@ -47,13 +49,10 @@ func getHostByteOrder() binary.ByteOrder {
 	return binary.BigEndian
 }
 
-
-
-func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
+func (this *EventListener) Workdata(data []byte) {
+	<- this.client.Done
+	// fmt.Println("Working data")
 	bo := this.ByteOrder
-	pid := bo.Uint32(data[4:8])
-	fmt.Printf("Suspended on pid: %d\n", pid)
-	this.process.StoppedPID(pid)
 	context := &EventContext{}
 	for i := 12; i < 12+8*30; i += 8 {
 		context.Regs = append(context.Regs, bo.Uint64(data[i:i+8]))
@@ -61,8 +60,54 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	context.LR = bo.Uint64(data[12+8*30:12+8*31])
 	context.SP = bo.Uint64(data[12+8*31:12+8*32])
 	context.PC = bo.Uint64(data[12+8*32:12+8*33])
+
+	fmt.Println("──────────────────────────────────────[  DISASM  ]────────────────────────────────────────")
+	codeBuf := make([]byte, 40)
+	n, err := utils.ReadProcessMemory(this.pid, uintptr(context.PC), codeBuf)
+	// fmt.Println(codeBuf)
+	if err != nil {
+		fmt.Println("Failed to read code...")
+	} else {
+		code, err := utils.DisASM(codeBuf[0:4])
+		if err == nil {
+			fmt.Printf(">>  0x%x\t%s\n", context.PC, code)
+		} else {
+			fmt.Printf(">>  0x%x\t(disassemble failed)\n", context.PC)
+		}
+		for i := 4; i < n; i += 4{
+			code, err = utils.DisASM(codeBuf[i:i+4])
+			if err == nil {
+				fmt.Printf("    0x%x\t%s\n", context.PC+uint64(i), code)
+			} else {
+				fmt.Printf("    0x%x\t(disassemble failed)\n", context.PC+uint64(i))
+			}
+		}
+	}
+
 	context.Print()
 	this.client.Incoming <- true
+}
+
+func (this *EventListener) Run() {
+	go func() {
+		for {
+			data := <- this.Incomingdata
+			// fmt.Println("Recieved data")
+			this.Workdata(data)
+		}
+	}()
+}
+
+func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
+	bo := this.ByteOrder
+	this.pid = bo.Uint32(data[4:8])
+	fmt.Printf("Suspended on pid: %d\n", this.pid)
+	this.process.StoppedPID(this.pid)
+	this.client.Pid = this.pid
+	this.Incomingdata <- data
+	// fmt.Println("Send data")
+	this.client.DoClean <- true
+	// fmt.Println("Send DoClean")
 }
 
 func (this *EventContext) Print() {

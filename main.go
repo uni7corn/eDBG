@@ -69,7 +69,7 @@ func main() {
     brkManager := module.CreateBreakPointManager(eventListener)
     client := cli.CreateClient(process, library, brkManager)
     eventListener.SetupClient(client)
-
+    eventListener.Run()
 	brkAddrs, err := ParseBreakPoints(brkFlag)
 	if err != nil {
 		fmt.Println("Create Breakpoints Failed: ", err)

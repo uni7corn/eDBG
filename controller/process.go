@@ -135,8 +135,8 @@ func FindLibPathFromPackage(name string) []string {
 }
 
 func (this *Process) Continue() error {
-	// this.UpdatePidList()
-	for _, pid := range this.StoppedPid {
+	this.UpdatePidList()
+	for _, pid := range this.PidList {
 		fmt.Printf("Continued pid: %d\n", int(pid))
         err := syscall.Kill(int(pid), syscall.SIGCONT)
         if err != nil {

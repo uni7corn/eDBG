@@ -1,7 +1,7 @@
 package cli
 
 import (
-	// "eDBG/utils"
+	"eDBG/utils"
 	"eDBG/controller"
 	"eDBG/module"
 	"os"
@@ -13,20 +13,33 @@ import (
 )
 
 type Client struct {
+	Pid uint32
 	Library *controller.LibraryInfo
 	Process *controller.Process
 	BrkManager *module.BreakPointManager
 	Incoming chan bool
+	Done chan bool
+	DoClean chan bool
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager) *Client {
-	return &Client{library, process, brkManager, make(chan bool, 1)}
+	return &Client{0, library, process, brkManager, make(chan bool, 1), make(chan bool, 1), make(chan bool, 1)}
 }
 
 func (this *Client) Run() {
 	go func() {
 		for {
+			<- this.DoClean
+			// fmt.Println("Doing Cleaning")
+			err := this.BrkManager.Stop()
+			if err != nil {
+				fmt.Println("Failed to terminate.")
+				this.CleanUp()
+				return
+			}
+			this.Done <- true
 			<- this.Incoming
+			// fmt.Println("Cli Ready")
 			scanner := bufio.NewScanner(os.Stdin)
 			fmt.Print("(eDBG) ")
 		loop:
@@ -52,7 +65,6 @@ func (this *Client) Run() {
 					this.HandleMemory(args)
 				case "quit", "q":
 					this.CleanUp()
-					syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
 					return
 				case "continue", "c":
 					this.HandleContinue()
@@ -69,7 +81,8 @@ func (this *Client) Run() {
 
 func (this *Client) CleanUp() {
 	this.Process.Continue()
-	this.BrkManager.Stop()
+	_ = this.BrkManager.Stop()
+	syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
 }
 
 
@@ -86,7 +99,7 @@ func (this *Client) HandleBreak(args []string) {
 		return
 	}
 
-	if err := this.BrkManager.AddBreakPoint(*this.Library, offset); err != nil {
+	if err := this.BrkManager.CreateBreakPoint(*this.Library, offset); err != nil {
 		fmt.Printf("Failed to set breakpoint: %v", err)
 	} else {
 		fmt.Printf("Breakpoint at 0x%x\n", offset)
@@ -95,6 +108,12 @@ func (this *Client) HandleBreak(args []string) {
 }
 
 func (this *Client) HandleContinue() {
+	err := this.BrkManager.SetupProbe()
+	if err != nil {
+		fmt.Println("Failed to Continue.")
+		this.CleanUp()
+		return
+	}
 	this.Process.Continue()
 }
 
@@ -107,39 +126,46 @@ func (this *Client) HandleNext() {
 }
 
 func (	this *Client) HandleMemory(args []string) {
-	fmt.Print("todo")
-	// if len(args) < 2 {
-	// 	log.Println("Usage: x <address> <length>")
-	// 	return
-	// }
+	// fmt.Print("todo")
+	if len(args) < 2 {
+		fmt.Println("Usage: x <address> <length>")
+		return
+	}
 
-	// address, err := parseOffset(args[0])
-	// if err != nil {
-	// 	log.Printf("Bad offset: %v", err)
-	// 	return
-	// }
+	address, err := strconv.ParseUint(args[0], 0, 64)
+	if err != nil {
+		fmt.Printf("Bad offset: %v", err)
+		return
+	}
 
-	// length, err := strconv.Atoi(args[1])
-	// if err != nil || length <= 0 {
-	// 	log.Println("Bad length")
-	// 	return
-	// }
+	length, err := strconv.Atoi(args[1])
+	if err != nil || length <= 0 {
+		fmt.Println("Bad length")
+		return
+	}
 
-	// data, err := module.ReadMemory(address, length)
-	// if err != nil {
-	// 	log.Printf("Reading Memory Error: %v", err)
-	// 	return
-	// }
+	data := make([]byte, length)
+	n, err := utils.ReadProcessMemory(this.Pid, uintptr(address), data)
 
-	// buf := &strings.Builder{}
-	// for i := 0; i < len(data); i++ {
-	// 	if i%16 == 0 {
-	// 		if i != 0 {
-	// 			buf.WriteByte('\n')
-	// 		}
-	// 		fmt.Fprintf(buf, "%08x  ", address+uint64(i))
-	// 	}
-	// 	fmt.Fprintf(buf, "%02x ", data[i])
-	// }
-	// log.Println(buf.String())
+	if err != nil {
+		fmt.Printf("Reading Memory Error: %v", err)
+		return
+	}
+
+	buf := &strings.Builder{}
+	for i := 0; i < n; i++ {
+		if i%16 == 0 {
+			if i != 0 {
+				buf.WriteByte('\n')
+			}
+			fmt.Fprintf(buf, "%08x\t", address+uint64(i))
+		}
+		if i%8 == 0 && i%16 != 0 {
+			if i != 0 {
+				buf.WriteByte(' ')
+			}
+		}
+		fmt.Fprintf(buf, "%02x", data[i])
+	}
+	fmt.Println(buf.String())
 }
