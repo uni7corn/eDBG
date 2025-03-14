@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"golang.org/x/sys/unix"
 	"strconv"
+	"encoding/binary"
 	"strings"
 	// "unsafe"
 )
@@ -69,10 +70,7 @@ func TryRead(pid uint32, remoteAddr uintptr) (bool, string) {
 		outbuf.WriteByte('"')
 
 	} else {
-		fmt.Fprintf(outbuf, "0x")
-		for i := 0; i < n; i++ {
-			fmt.Fprintf(outbuf, "%02x", buf[i])
-		}
+		fmt.Fprintf(outbuf, "0x%X", binary.LittleEndian.Uint64(buf))
 	}
 	return true, outbuf.String()
 }

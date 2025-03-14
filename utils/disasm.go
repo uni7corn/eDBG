@@ -80,16 +80,10 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 		} else {
 			return uintptr(PC + 4), nil
 		}
-	// case arm64asm.B_eq, arm64asm.BNE, arm64asm.BHS, arm64asm.BLO,
-    //     arm64asm.BMI, arm64asm.BPL, arm64asm.BVS, arm64asm.BVC,
-    //     arm64asm.BHI, arm64asm.BLS, arm64asm.BGE, arm64asm.BLT,
-    //     arm64asm.BGT, arm64asm.BLE: // 条件分支操作码
-    //     cond := extractCondFromOp(inst.Op)// 条件跳转和其他指令
-    //     if conditionMet(cond, pstate) {
-	// 		if target := getBranchTarget(inst, PC); target != 0 {
-	// 			return uintptr(target), nil
-	// 		}
-	// 	}
+	case arm64asm.CBZ, arm64asm.CBNZ:
+		//to do!
+	case arm64asm.TBZ, arm64asm.TBNZ:
+		//to do!
 		
     }
     
