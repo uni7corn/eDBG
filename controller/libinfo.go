@@ -23,20 +23,30 @@ func CreateLibrary(process *Process, libName string) (*LibraryInfo, error) {
 	libInfo := &LibraryInfo{}
 	libInfo.LibName = libName
 	libInfo.Process = process
-	if strings.HasPrefix(libInfo.LibName, "/") {
-        if _, err := os.Stat(libInfo.LibName); err != nil {
-            return &LibraryInfo{}, err
+	if err := libInfo.ParseLibrary(); err != nil {
+		return &LibraryInfo{}, err
+	}
+	return libInfo, nil
+}
+
+func (this *LibraryInfo) ParseLibrary() error {
+	if this.LibName == "" {
+		return fmt.Errorf("ParseLibrary: No Library Name Specified.")
+	}
+	if strings.HasPrefix(this.LibName, "/") {
+        if _, err := os.Stat(this.LibName); err != nil {
+            return err
         }
-        libInfo.LibPath = libInfo.LibName
-		libInfo.RealFilePath = libInfo.LibName
+        this.LibPath = this.LibName
+		this.RealFilePath = this.LibName
 	} else {
-		err := libInfo.LocateLibrary()
+		err := this.LocateLibrary()
 		if err != nil {
-			return &LibraryInfo{}, err
+			return err
 		}
 	}
-	fmt.Printf("Found library at %s\n", libInfo.RealFilePath)
-	return libInfo, nil
+	return nil
+	// fmt.Printf("Found library at %s\n", libInfo.RealFilePath)
 }
 
 func (this *LibraryInfo) LocateLibrary() error {

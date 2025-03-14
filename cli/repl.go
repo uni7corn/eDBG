@@ -13,7 +13,6 @@ import (
 )
 
 type Client struct {
-	Pid uint32
 	Library *controller.LibraryInfo
 	Process *controller.Process
 	BrkManager *module.BreakPointManager
@@ -23,60 +22,80 @@ type Client struct {
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager) *Client {
-	return &Client{0, library, process, brkManager, make(chan bool, 1), make(chan bool, 1), make(chan bool, 1)}
+	return &Client{library, process, brkManager, make(chan bool, 1), make(chan bool, 1), make(chan bool, 1)}
 }
 
 func (this *Client) Run() {
 	go func() {
 		for {
 			<- this.DoClean
-			// fmt.Println("Doing Cleaning")
-			err := this.BrkManager.Stop()
-			if err != nil {
-				fmt.Println("Failed to terminate.")
-				this.CleanUp()
-				return
-			}
+			this.StopProbes()
 			this.Done <- true
-			<- this.Incoming
-			// fmt.Println("Cli Ready")
-			scanner := bufio.NewScanner(os.Stdin)
-			fmt.Print("(eDBG) ")
-		loop:
-			for scanner.Scan() {
-				line := strings.TrimSpace(scanner.Text())
-				if line == "" {
-					fmt.Print("(eDBG) ")
-					continue
-				}
-
-				parts := strings.Fields(line)
-				cmd := parts[0]
-				args := parts[1:]
-
-				switch cmd {
-				case "break", "b":
-					this.HandleBreak(args)
-				case "step", "s":
-					this.HandleStep()
-				case "next", "n":
-					this.HandleNext()
-				case "x":
-					this.HandleMemory(args)
-				case "quit", "q":
-					this.CleanUp()
-					return
-				case "continue", "c":
-					this.HandleContinue()
-					break loop
-				default:
-					fmt.Println("Unknown command:", cmd)
-				}
-
-				fmt.Print("(eDBG) ")
-			}
 		}
 	}()
+	go func() {
+		for {
+			<- this.Incoming
+			this.OutputInfo()
+			this.REPL()
+		}
+	}()
+}
+
+func (this *Client) OutputInfo() {
+	fmt.Println("──────────────────────────────────────[ REGISTERS ]──────────────────────────────────────")
+	this.Process.PrintContext()
+	fmt.Println("──────────────────────────────────────[  DISASM  ]────────────────────────────────────────")
+	this.PrintDisassembleInfo(this.Process.WorkPid, this.Process.Context.PC, 10)
+	fmt.Println("─────────────────────────────────────────────────────────────────────────────────────────")
+}
+
+
+func (this *Client) StopProbes() {
+	// fmt.Println("Doing Cleaning")
+	err := this.BrkManager.Stop()
+	if err != nil {
+		fmt.Println("Failed to terminate.")
+		this.CleanUp()
+	}
+}
+
+func (this *Client) REPL() {
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Print("(eDBG) ")
+loop:
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			fmt.Print("(eDBG) ")
+			continue
+		}
+
+		parts := strings.Fields(line)
+		cmd := parts[0]
+		args := parts[1:]
+
+		switch cmd {
+		case "break", "b":
+			this.HandleBreak(args)
+		case "step", "s":
+			this.HandleStep()
+		case "next", "n":
+			this.HandleNext()
+		case "x":
+			this.HandleMemory(args)
+		case "quit", "q":
+			this.CleanUp()
+			return
+		case "continue", "c":
+			this.HandleContinue()
+			break loop
+		default:
+			fmt.Println("Unknown command:", cmd)
+		}
+
+		fmt.Print("(eDBG) ")
+	}
 }
 
 func (this *Client) CleanUp() {
@@ -95,11 +114,20 @@ func (this *Client) HandleBreak(args []string) {
 	offset, err := strconv.ParseUint(args[0], 0, 64)
 	// fmt.Printf("Try to set breakpoint at 0x%x\n", offset)
 	if err != nil {
-		fmt.Printf("Bad offset: %v", err)
+		fmt.Printf("Bad address: %v", err)
 		return
 	}
+	address := controller.NewAddress(this.Library, offset)
 
-	if err := this.BrkManager.CreateBreakPoint(*this.Library, offset); err != nil {
+	if offset > 0x5000000000 {
+		address, err = this.Process.ParseAddress(offset)
+		if err != nil {
+			fmt.Printf("Bad address: %v", err)
+			return
+		}
+	}
+
+	if err := this.BrkManager.CreateBreakPoint(address); err != nil {
 		fmt.Printf("Failed to set breakpoint: %v", err)
 	} else {
 		fmt.Printf("Breakpoint at 0x%x\n", offset)
@@ -125,7 +153,7 @@ func (this *Client) HandleNext() {
 	fmt.Print("todo")
 }
 
-func (	this *Client) HandleMemory(args []string) {
+func (this *Client) HandleMemory(args []string) {
 	// fmt.Print("todo")
 	if len(args) < 2 {
 		fmt.Println("Usage: x <address> <length>")
@@ -145,7 +173,7 @@ func (	this *Client) HandleMemory(args []string) {
 	}
 
 	data := make([]byte, length)
-	n, err := utils.ReadProcessMemory(this.Pid, uintptr(address), data)
+	n, err := utils.ReadProcessMemory(this.Process.WorkPid, uintptr(address), data)
 
 	if err != nil {
 		fmt.Printf("Reading Memory Error: %v", err)
@@ -168,4 +196,42 @@ func (	this *Client) HandleMemory(args []string) {
 		fmt.Fprintf(buf, "%02x", data[i])
 	}
 	fmt.Println(buf.String())
+}
+
+func (this *Client) PrintDisassembleInfo(pid uint32, address uint64, len int) {
+	// len为指令条数
+	codeBuf := make([]byte, len*4)
+	n, err := utils.ReadProcessMemory(pid, uintptr(address), codeBuf)
+	if err != nil {
+		fmt.Println("Failed to read code...")
+	} else {
+		addInfo, err := this.Process.ParseAddress(address)
+		if err == nil {
+			fmt.Printf(">>  0x%x<%s+%x>\t", address, addInfo.LibInfo.LibName, addInfo.Offset)
+		} else {
+			fmt.Printf(">>  0x%x%v\t", address, err)
+		}
+
+		code, err := utils.DisASM(codeBuf[0:4])
+		if err == nil {
+			fmt.Printf("%s\n", code)
+		} else {
+			fmt.Println("(disassemble failed)")
+		}
+		for i := 4; i < n; i += 4{
+			addInfo, err = this.Process.ParseAddress(address+uint64(i))
+			if err == nil {
+				fmt.Printf("    0x%x<%s+%x>\t", address+uint64(i), addInfo.LibInfo.LibName, addInfo.Offset)
+			} else {
+				fmt.Printf("    0x%x\t", address+uint64(i))
+			}
+
+			code, err = utils.DisASM(codeBuf[i:i+4])
+			if err == nil {
+				fmt.Printf("%s\n", code)
+			} else {
+				fmt.Println("(disassemble failed)\n")
+			}
+		}
+	}
 }

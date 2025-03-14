@@ -8,12 +8,15 @@ import (
     "golang.org/x/exp/slices"
 )
 
+
+
 type Segment struct {
     baseAddr uint64
     off      uint64
     endAddr  uint64
     libPath  string
     libName  string
+    permission string
 }
 
 type ProcMaps struct {
@@ -35,6 +38,8 @@ func GetProcMaps(pid uint32) (*ProcMaps, error) {
 	}
     return procMaps, nil
 }
+
+
 
 func (this *ProcMaps) ReadMaps() error {
 	if this.pid == 0 {
@@ -72,6 +77,7 @@ func (this *ProcMaps) ParseMapsContent(content []byte) error {
                 off:      seg_offset,
                 endAddr:  seg_end,
                 libPath:  seg_path,
+                permission: permission,
             }
             new_info.ParseLib()
 			this.segments = append(this.segments, new_info)

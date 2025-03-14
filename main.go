@@ -76,7 +76,7 @@ func main() {
 		os.Exit(1)
 	}
 	
-	err = brkManager.Start(*library, brkAddrs)
+	err = brkManager.Start(library, brkAddrs)
 	if err != nil {
 		fmt.Println("Module start Failed: ", err)
 		os.Exit(1)

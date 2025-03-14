@@ -11,16 +11,21 @@ import (
 	"strconv"
 )
 
+
+
 type Process struct {
 	PidList []uint32
 	PackageName string
 	ExecPath string
 	ProcMaps map[uint32]*ProcMaps
 	StoppedPid []uint32
+	Context *ProcessContext
+	WorkPid uint32
 }
 
 func CreateProcess(packageName string) (*Process, error) {
 	process := &Process{}
+	process.ProcMaps = make(map[uint32]*ProcMaps)
 	process.PackageName = packageName
 	err := process.GetExecPath()
 	if err != nil {
@@ -31,6 +36,11 @@ func CreateProcess(packageName string) (*Process, error) {
 		return &Process{}, err
 	}
 	return process, nil
+}
+
+func (this *Process) UpToDate() {
+	// this.UpdatePidList()
+	this.UpdateMapsPid(this.WorkPid)
 }
 
 func (this *Process) GetExecPath() error {
@@ -60,8 +70,14 @@ func (this *Process) UpdatePidList() {
     return
 }
 
+func (this *Process) UpdateMapsPid(pid uint32) {
+	procMaps, err := GetProcMaps(pid)
+	if err == nil {
+		this.ProcMaps[pid] = procMaps
+	}
+}
+
 func (this *Process) UpdateMaps() {
-	this.ProcMaps = make(map[uint32]*ProcMaps)
 	for _, pid := range this.PidList {
 		procMaps, err := GetProcMaps(pid)
 		if err == nil {
@@ -69,6 +85,7 @@ func (this *Process) UpdateMaps() {
 		}
 	}
 }
+
 
 func (this *Process) checkPackageName() error {
 	packageinfos := utils.GetPackageInfos()
@@ -170,3 +187,4 @@ func (this *Process) Stop() error {
     }
 	return nil
 }
+

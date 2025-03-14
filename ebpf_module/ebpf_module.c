@@ -5,6 +5,7 @@ struct data_t {
 	__u64 regs[31];
 	__u64 sp;
 	__u64 pc;
+    __u64 pstate;
 };
 
 // struct ringbuf_bpf_map_def SEC("maps/ringbuf_map") ringbuf_map = {
@@ -59,6 +60,7 @@ static __always_inline u32 do_probe(struct pt_regs* ctx, u32 point_key) {
     }
     bpf_probe_read_kernel(&data->sp, sizeof(data->sp), &ctx->sp);
     bpf_probe_read_kernel(&data->pc, sizeof(data->pc), &ctx->pc);
+    bpf_probe_read_kernel(&data->pstate, sizeof(data->pstate), &ctx->pstate);
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, data, sizeof(struct data_t));
     bpf_send_signal(19);
     return 0;

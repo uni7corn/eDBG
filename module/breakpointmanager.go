@@ -12,22 +12,52 @@ type IEventListener interface {
 }
 
 type BreakPoint struct {
-	libInfo controller.LibraryInfo
+	libInfo *controller.LibraryInfo
 	offset uint64
 	enable bool
 }
 
 type BreakPointManager struct {
 	breakPoints []*BreakPoint
+	temporaryBreakPoint *BreakPoint
+	hasTempBreak bool
 	probeHandler *ProbeHandler
 }
 
 func CreateBreakPointManager(listener IEventListener) *BreakPointManager {
-	return &BreakPointManager{probeHandler: CreateProbeHandler(listener)}
+	return &BreakPointManager{probeHandler: CreateProbeHandler(listener), hasTempBreak: false}
 }
 
-func (this *BreakPointManager) CreateBreakPoint(libInfo controller.LibraryInfo, offset uint64) error {
-	if offset%4 != 0 {
+func checkOffset(offset uint64) bool {
+	return offset%4 == 0
+}
+
+func (this *BreakPointManager) SetTempBreak(address *controller.Address) error {
+	offset := address.Offset
+	libInfo := address.LibInfo
+	if checkOffset(offset) == false {
+		return fmt.Errorf("Invalid address: %x", offset)
+	}
+	for _, brk := range this.breakPoints {
+		if brk.libInfo.LibName == libInfo.LibName && offset == brk.offset && brk.enable == true {
+			return nil
+		}
+	}
+
+	brk := &BreakPoint{
+		libInfo: libInfo,
+		offset: offset,
+		enable: true,
+	}
+	this.temporaryBreakPoint = brk
+	this.hasTempBreak = true
+	return nil
+}
+
+func (this *BreakPointManager) CreateBreakPoint(address *controller.Address) error {
+	offset := address.Offset
+	libInfo := address.LibInfo
+	if checkOffset(offset) == false {
 		return fmt.Errorf("Invalid address: %x", offset)
 	}
 	for _, brk := range this.breakPoints {
@@ -54,11 +84,21 @@ func (this *BreakPointManager) SetupProbe() error {
 	// if err != nil {
 	// 	return err
 	// }
-	err := this.probeHandler.SetupManager(this.breakPoints)
-	if err != nil {
-		return err
+	if this.hasTempBreak == true {
+		err := this.probeHandler.SetupManager(append(this.breakPoints, this.temporaryBreakPoint))
+		if err != nil {
+			return err
+		}
+		this.hasTempBreak = false
+	} else {
+		err := this.probeHandler.SetupManager(this.breakPoints)
+		if err != nil {
+			return err
+		}
 	}
-	err = this.probeHandler.Run()
+	
+	
+	err := this.probeHandler.Run()
 	// fmt.Println("probe is running..")
 	if err != nil {
 		return err
@@ -66,9 +106,9 @@ func (this *BreakPointManager) SetupProbe() error {
 	return nil
 }
 
-func (this *BreakPointManager) Start(libInfo controller.LibraryInfo, brkAddrs []uint64) error {
+func (this *BreakPointManager) Start(libInfo *controller.LibraryInfo, brkAddrs []uint64) error {
 	for _, offset := range brkAddrs {
-		err := this.CreateBreakPoint(libInfo, offset)
+		err := this.CreateBreakPoint(controller.NewAddress(libInfo, offset))
 		if err != nil {
 			fmt.Printf("Create Breakpoints Failed: %v, skipped.", err)
 			continue
@@ -76,25 +116,6 @@ func (this *BreakPointManager) Start(libInfo controller.LibraryInfo, brkAddrs []
 	}
 	return this.SetupProbe()
 }
-
-// func (this *BreakPointManager) AddBreakPoint(libInfo controller.LibraryInfo, offset uint64) error {
-// 	if offset%4 != 0 {
-// 		return fmt.Errorf("Invalid address: %x", offset)
-// 	}
-// 	// err := this.probeHandler.Stop()
-// 	// if err != nil {
-// 	// 	return err
-// 	// }
-// 	// fmt.Println("Module Stopped.")
-// 	err = this.CreateBreakPoint(libInfo, offset)
-// 	if err != nil {
-// 		return fmt.Errorf("Create Breakpoints Failed: %v, skipped.", err)
-// 	}
-// 	// for _, brk := range this.breakPoints {
-// 	// 	fmt.Printf("Breakpoint at %x\n", brk.offset)
-// 	// }
-// 	return this.SetupProbe()
-// }
 
 func (this *BreakPointManager) Stop() error {
 	return this.probeHandler.Stop()
