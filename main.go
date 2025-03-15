@@ -2,7 +2,7 @@ package main
 
 import (
     "eDBG/cli"
-	"errors"
+	// "errors"
     // "bufio"
 	"flag"
 	// "log"
@@ -41,7 +41,7 @@ func main() {
 	flag.StringVar(&packageName, "p", "", "Target package name")
 	flag.StringVar(&libName, "l", "", "Target library name")
     flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
-    flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Register Window")
+    flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Disassemble Window")
 	flag.Parse()
 
     if packageName == "" {
@@ -52,10 +52,10 @@ func main() {
         fmt.Println("No Library Specified. Use -l libraryname.so")
         os.Exit(1)
     }
-    if brkFlag == "" {
-        fmt.Println("Initial Breakpoint needed. Use --b [0x1234,0x5678]")
-        os.Exit(1)
-    }
+    // if brkFlag == "" {
+    //     fmt.Println("Initial Breakpoint needed. Use --b [0x1234,0x5678]")
+    //     os.Exit(1)
+    // }
 
 	process, err := controller.CreateProcess(packageName)
 	if err != nil {
@@ -114,7 +114,7 @@ func main() {
 func ParseBreakPoints(brkFlag string) ([]uint64, error) {
 	trimmed := strings.Trim(brkFlag, "[]")
 	if trimmed == "" {
-		return nil, errors.New("ParseBreakPoints: Invalid breakpoint format. Usage: --brk [0x1234,0x5678]")
+		return []uint64{}, nil
 	}
 
 	addresses := strings.Split(trimmed, ",")

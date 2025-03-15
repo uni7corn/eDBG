@@ -438,7 +438,7 @@ func (this *Client) HandleNext() {
 		fmt.Printf("Failed to parse nextPC: %v\n", err)
 		return
 	}
-	fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
+	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address)
 	this.HandleContinue()
 }

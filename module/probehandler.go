@@ -45,6 +45,10 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
         probes = append(probes, probe)
     }
     
+    if len(probes) == 0 {
+        fmt.Println("WARNING: No valid breakpoints set. eDBG may be unable to stop the program.")
+    }
+
     this.bpfManager = &manager.Manager{
         Probes: probes,
         PerfMaps: []*manager.PerfMap{

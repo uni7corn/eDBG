@@ -113,7 +113,7 @@ func (this *BreakPointManager) Start(libInfo *controller.LibraryInfo, brkAddrs [
 	for _, offset := range brkAddrs {
 		err := this.CreateBreakPoint(controller.NewAddress(libInfo, offset))
 		if err != nil {
-			fmt.Printf("Create Breakpoints Failed: %v, skipped.", err)
+			fmt.Printf("Create Breakpoints Failed: %v, skipped.\n", err)
 			continue
 		}
 	}
