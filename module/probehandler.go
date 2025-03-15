@@ -24,7 +24,7 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
     probes := []*manager.Probe{}
     usedCount := 0
     for i, brk := range brks {
-        if brk.enable != true {
+        if !brk.enable || brk.deleted {
             continue
         }
         var probe *manager.Probe

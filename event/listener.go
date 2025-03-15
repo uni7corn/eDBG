@@ -6,8 +6,9 @@ import(
 	"unsafe"
 	"eDBG/controller"
 	// "eDBG/utils"
+	"syscall"
 	"eDBG/cli"
-	"fmt"
+	// "fmt"
 )
 
 type EventListener struct {
@@ -53,12 +54,11 @@ func (this *EventListener) Workdata(data []byte) {
 	context.LR = bo.Uint64(data[12+8*30:12+8*31])
 	context.SP = bo.Uint64(data[12+8*31:12+8*32])
 	context.PC = bo.Uint64(data[12+8*32:12+8*33])
-	context.Pstate = bo.Uint64(data[12+8*32:12+8*33])
+	context.Pstate = bo.Uint64(data[12+8*33:12+8*34])
 	this.process.Context = context
+	// fmt.Println("Done data")
 	this.client.Incoming <- true
 }
-
-
 
 func (this *EventListener) Run() {
 	go func() {
@@ -71,15 +71,22 @@ func (this *EventListener) Run() {
 }
 
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
+	this.process.UpdatePidList()
 	bo := this.ByteOrder
 	this.pid = bo.Uint32(data[4:8])
-	fmt.Printf("Suspended on pid: %d\n", this.pid)
-	this.process.StoppedPID(this.pid)
-	this.process.WorkPid = this.pid
-	this.process.UpToDate()
-	this.Incomingdata <- data
-	// fmt.Println("Send data")
-	this.client.DoClean <- true
+	for _, ablepid := range this.process.PidList {
+		if this.pid == ablepid {
+			// fmt.Printf("Suspended on pid: %d\n", this.pid)
+			this.process.StoppedPID(this.pid)
+			this.process.WorkPid = this.pid
+			this.process.UpToDate()
+			this.Incomingdata <- data
+			this.client.DoClean <- true
+			return
+		}
+	}
+	
+	syscall.Kill(int(this.pid), syscall.SIGCONT)
 	// fmt.Println("Send DoClean")
 }
 

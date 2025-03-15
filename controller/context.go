@@ -14,7 +14,16 @@ type ProcessContext struct {
 }
 
 func (this *ProcessContext) GetReg(key int) uint64 {
-	return this.Regs[key]
+	if key <= 29 {
+		return this.Regs[key] & 0xFFFFFFFF
+	}
+	if key == 30 {
+		return this.LR
+	}
+	if key == 31 {
+		return this.SP
+	}
+	return this.Regs[key-32]
 }
 func (this *ProcessContext) GetPC() uint64 {
 	return this.PC

@@ -15,6 +15,7 @@ type BreakPoint struct {
 	libInfo *controller.LibraryInfo
 	offset uint64
 	enable bool
+	deleted bool
 }
 
 type BreakPointManager struct {
@@ -48,6 +49,7 @@ func (this *BreakPointManager) SetTempBreak(address *controller.Address) error {
 		libInfo: libInfo,
 		offset: offset,
 		enable: true,
+		deleted: false,
 	}
 	this.temporaryBreakPoint = brk
 	this.hasTempBreak = true
@@ -74,6 +76,7 @@ func (this *BreakPointManager) CreateBreakPoint(address *controller.Address) err
 		libInfo: libInfo,
 		offset: offset,
 		enable: true,
+		deleted: false,
 	}
 	this.breakPoints = append(this.breakPoints, brk)
 	return nil
@@ -119,4 +122,43 @@ func (this *BreakPointManager) Start(libInfo *controller.LibraryInfo, brkAddrs [
 
 func (this *BreakPointManager) Stop() error {
 	return this.probeHandler.Stop()
+}
+
+func (this *BreakPointManager) PrintBreakPoints() {
+	for id, brk := range this.breakPoints {
+		if brk.deleted {
+			continue
+		}
+		if !brk.enable {
+			fmt.Printf("[-] ")
+		} else {
+			fmt.Printf("[+] ")
+		}
+		fmt.Printf("%d: %s+%x\n", id, brk.libInfo.LibName, brk.offset)
+	}
+}
+
+func (this *BreakPointManager) ChangeBreakPoint(id int, status bool) {
+	if id >= len(this.breakPoints) {
+		fmt.Println("Breakpoint doesn't exist.")
+		return
+	}
+	if this.breakPoints[id].deleted {
+		fmt.Println("Breakpoint doesn't exist.")
+		return
+	}
+	this.breakPoints[id].enable = status
+}
+
+func (this *BreakPointManager) DeleteBreakPoint(id int) {
+	if id > len(this.breakPoints) {
+		fmt.Println("Breakpoint doesn't exist.")
+		return
+	}
+	if this.breakPoints[id].deleted {
+		fmt.Println("Breakpoint doesn't exist.")
+		return
+	}
+	this.breakPoints[id].enable = false
+	this.breakPoints[id].deleted = true
 }

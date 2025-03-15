@@ -62,12 +62,21 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
     switch inst.Op {
 	case arm64asm.RET:
 		return uintptr(ctx.GetLR()), nil
-    case arm64asm.B: // 无条件跳转
+	case arm64asm.BR:
+		if reg, ok := inst.Args[0].(arm64asm.Reg); ok {
+            target := ctx.GetReg(int(reg))
+            return uintptr(target), nil
+        } else {
+			return uintptr(PC + 4), nil
+		}
+    case arm64asm.B:
 		cond := getCondition(inst)
-		fmt.Println("Condition: ", cond)
+		fmt.Printf("Condition: '%s'\n", cond)
 		if conditionMet(cond, pstate) {
 			if target := getBranchTarget(inst, PC); target != 0 {
 				return uintptr(target), nil
+			} else {
+				return uintptr(PC + 4), fmt.Errorf("PredictNextPC: Failed to get B target")
 			}
 		} else {
 			return uintptr(PC + 4), nil
@@ -76,52 +85,84 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 		if Step == true {
 			if target := getBranchTarget(inst, PC); target != 0 {
 				return uintptr(target), nil
+			}else {
+				return uintptr(PC + 4), fmt.Errorf("PredictNextPC: Failed to get BL target")
+			}
+		} else {
+			return uintptr(PC + 4), nil
+		}
+	case arm64asm.BLR:
+		if Step == true {
+			if reg, ok := inst.Args[0].(arm64asm.Reg); ok {
+				target := ctx.GetReg(int(reg))
+				return uintptr(target), nil
+			} else {
+				return uintptr(PC + 4), fmt.Errorf("PredictNextPC: Failed to get BLR target")
 			}
 		} else {
 			return uintptr(PC + 4), nil
 		}
 	case arm64asm.CBZ, arm64asm.CBNZ:
-		//to do!
+		if reg, target := getCBZTarget(inst, PC, ctx); target != 0 {
+            value := ctx.GetReg(reg)
+            if (inst.Op == arm64asm.CBZ && value == 0) ||
+                (inst.Op == arm64asm.CBNZ && value != 0) {
+                return uintptr(target), nil
+            }
+        }
+        return uintptr(PC + 4), nil
 	case arm64asm.TBZ, arm64asm.TBNZ:
-		//to do!
+		if reg, bit, target := getTBZTarget(inst, PC, ctx); target != 0 {
+            value := ctx.GetReg(reg)
+            bitVal := (value >> bit) & 1
+            if (inst.Op == arm64asm.TBZ && bitVal == 0) ||
+                (inst.Op == arm64asm.TBNZ && bitVal != 0) {
+                return uintptr(target), nil
+            }
+        }
+        return uintptr(PC + 4), nil
 		
     }
-    
     // 3. 默认返回顺序执行地址
     return uintptr(PC + 4), nil
 }
 
-// func extractCondFromOp(op arm64asm.Op) arm64asm.Cond {
-//     switch op {
-//     case arm64asm.BEQ: return arm64asm.CondEQ
-//     case arm64asm.BNE: return arm64asm.CondNE
-//     case arm64asm.BHS: return arm64asm.CondHS
-//     case arm64asm.BLO: return arm64asm.CondLO
-//     case arm64asm.BMI: return arm64asm.CondMI
-//     case arm64asm.BPL: return arm64asm.CondPL
-//     case arm64asm.BVS: return arm64asm.CondVS
-//     case arm64asm.BVC: return arm64asm.CondVC
-//     case arm64asm.BHI: return arm64asm.CondHI
-//     case arm64asm.BLS: return arm64asm.CondLS
-//     case arm64asm.BGE: return arm64asm.CondGE
-//     case arm64asm.BLT: return arm64asm.CondLT
-//     case arm64asm.BGT: return arm64asm.CondGT
-//     case arm64asm.BLE: return arm64asm.CondLE
-//     default: return arm64asm.CondNV
-//     }
-// }
+func getCBZTarget(inst arm64asm.Inst, PC uint64, ctx IContext) (reg int, target uint64) {
+    if len(inst.Args) < 2 {
+        return 0, 0
+    }
+    regArg, ok1 := inst.Args[0].(arm64asm.Reg)
+    pcrelArg, ok2 := inst.Args[1].(arm64asm.PCRel)
+    if !ok1 || !ok2 {
+        return 0, 0
+    }
+    return int(regArg), PC + uint64(int64(pcrelArg))
+}
 
-// getBranchTarget 计算分支指令的目标地址
+// 获取 TBZ/TBNZ 的寄存器、测试位和目标地址
+func getTBZTarget(inst arm64asm.Inst, PC uint64, ctx IContext) (reg int, bit uint64, target uint64) {
+    if len(inst.Args) < 3 {
+        return 0, 0, 0
+    }
+    regArg, ok1 := inst.Args[0].(arm64asm.Reg)
+    bitArg, ok2 := inst.Args[1].(arm64asm.Imm)
+    pcrelArg, ok3 := inst.Args[2].(arm64asm.PCRel)
+    if !ok1 || !ok2 || !ok3 {
+        return 0, 0, 0
+    }
+    return int(regArg), uint64(bitArg.Imm), PC + uint64(int64(pcrelArg))
+}
+
 func getBranchTarget(inst arm64asm.Inst, PC uint64) uint64 {
     for _, arg := range inst.Args {
         if pcrel, ok := arg.(arm64asm.PCRel); ok {
-            // ARM64分支指令偏移量基于PC+8计算
-            return PC + 8 + uint64(int64(pcrel))
+            return PC + uint64(int64(pcrel))
         }
     }
 	fmt.Println("Failed to get branch target.")
     return 0
 }
+
 
 // conditionMet 判断条件码是否满足
 func conditionMet(cond string, pstate uint64) bool {
@@ -130,7 +171,7 @@ func conditionMet(cond string, pstate uint64) bool {
     z := (pstate >> 30) & 1
     c := (pstate >> 29) & 1
     v := (pstate >> 28) & 1
-
+	// fmt.Printf("Condition: N%x Z%x C%x V%x\n", n, z, c, v)
     switch cond {
 	case "AL": return true
     case "EQ":  return z == 1

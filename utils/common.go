@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 	"io/ioutil"
+	"fmt"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -37,4 +38,37 @@ func RunCommand(executable string, args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(bytes)), nil
+}
+
+
+func HexDump(address uint64, data []byte, len int) string {
+    var builder strings.Builder
+    for i := 0; i < len; i += 16 {
+        // 计算当前行偏移量
+        offset := i
+        builder.WriteString(fmt.Sprintf("%08x  ", address+uint64(offset)))
+
+        // 生成十六进制部分
+        hexPart := make([]string, 16)
+        asciiPart := make([]rune, 16)
+        for j := 0; j < 16; j++ {
+            if i+j < len {
+                hexPart[j] = fmt.Sprintf("%02x", data[i+j])
+                if data[i+j] >= 32 && data[i+j] <= 126 { // 可打印字符范围
+                    asciiPart[j] = rune(data[i+j])
+                } else {
+                    asciiPart[j] = '.'
+                }
+            } else {
+                hexPart[j] = "  " // 对齐空白
+                asciiPart[j] = ' '
+            }
+        }
+
+        // 拼接十六进制字符串（8 字节分组）
+        hexLine := strings.Join(hexPart[:8], "") + "  " + strings.Join(hexPart[8:], "")
+        builder.WriteString(fmt.Sprintf("%-47s  |%s|", hexLine, string(asciiPart)))
+        builder.WriteString("\n")
+    }
+    return builder.String()
 }

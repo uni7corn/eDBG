@@ -32,24 +32,28 @@ func main() {
 	var (
 		packageName string
 		libName string
+        hiddis bool
+        hidreg bool
 	)
 	var brkFlag string
 
-	flag.StringVar(&brkFlag, "brk", "", "Breakpoint addresses in hex format, e.g., [0x1234,0x5678]")
-	flag.StringVar(&packageName, "pkg", "", "Target package name")
-	flag.StringVar(&libName, "lib", "", "Target library name")
+	flag.StringVar(&brkFlag, "b", "", "Breakpoint addresses in hex format, e.g., [0x1234,0x5678]")
+	flag.StringVar(&packageName, "p", "", "Target package name")
+	flag.StringVar(&libName, "l", "", "Target library name")
+    flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
+    flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Register Window")
 	flag.Parse()
 
     if packageName == "" {
-        fmt.Println("No Package Specified. Use --pkg com.package.name")
+        fmt.Println("No Package Specified. Use -p com.package.name")
         os.Exit(1)
     }
     if libName == "" {
-        fmt.Println("No Library Specified. Use --lib libraryname.so")
+        fmt.Println("No Library Specified. Use -l libraryname.so")
         os.Exit(1)
     }
     if brkFlag == "" {
-        fmt.Println("Initial Breakpoint needed. Use --brk [0x1234,0x5678]")
+        fmt.Println("Initial Breakpoint needed. Use --b [0x1234,0x5678]")
         os.Exit(1)
     }
 
@@ -67,7 +71,10 @@ func main() {
 
     eventListener := event.CreateEventListener(process)
     brkManager := module.CreateBreakPointManager(eventListener)
-    client := cli.CreateClient(process, library, brkManager)
+    client := cli.CreateClient(process, library, brkManager, &cli.UserConfig{
+        Registers: !hidreg,
+        Disasm: !hiddis,
+    })
     eventListener.SetupClient(client)
     eventListener.Run()
 	brkAddrs, err := ParseBreakPoints(brkFlag)
@@ -100,6 +107,7 @@ func main() {
     // }()
     client.Run()
     <-stopper
+    process.Continue()
 }
 
 
