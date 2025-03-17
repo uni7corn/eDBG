@@ -40,8 +40,8 @@ Download prebuilt binaries from Releases:
 2. Start debugger:
 
    ```shell
-./eDBG -p com.package.name -l libname.so -b 0x123456
-
+   ./eDBG -p com.package.name -l libname.so -b 0x123456
+   ```
 
    |      Option       |                   Description                   |
    | :---------------: | :---------------------------------------------: |
