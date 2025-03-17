@@ -19,9 +19,15 @@ type DisplayInfo struct {
 	Len int
 }
 
+type ThreadFilter struct {
+	Thread *controller.Thread
+	Enable bool
+}
+
 type UserConfig struct {
 	Registers bool
 	Disasm bool
+	ThreadFilters []*ThreadFilter
 	Display []*DisplayInfo
 }
 
@@ -33,10 +39,13 @@ type Client struct {
 	Incoming chan bool
 	Done chan bool
 	DoClean chan bool
+	TempAddressAbsolute uint64
+	PreviousCMD string
+	// PreviousTid uint32
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager, config *UserConfig) *Client {
-	return &Client{library, process, brkManager, config, make(chan bool, 1), make(chan bool, 1), make(chan bool, 1)}
+	return &Client{library, process, brkManager, config, make(chan bool, 1), make(chan bool, 1), make(chan bool, 1), 0, ""}
 }
 
 func (this *Client) Run() {
@@ -117,10 +126,17 @@ loop:
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
+			line = this.PreviousCMD
+			// fmt.Print("(eDBG) ")
+			// continue
+		} else {
+			this.PreviousCMD = line
+		}
+		
+		if line == "" {
 			fmt.Print("(eDBG) ")
 			continue
 		}
-
 		parts := strings.Fields(line)
 		cmd := parts[0]
 		args := parts[1:]
@@ -159,8 +175,8 @@ loop:
 			fmt.Println("Command backtrace is not supported yet.")
 		case "jump", "j":
 			fmt.Println("Command jump is not supported because eDBG cannot perform modification.")
-		case "thread":
-			fmt.Println("Command thread is not supported.")
+		case "thread", "t":
+			this.HandleThread(args)
 		case "disable":
 			this.HandleChangeBrk(args, false)
 		case "enable":
@@ -182,9 +198,96 @@ loop:
 	}
 }
 
+func (this *Client) AddThreadFilter(args string) {
+	id, err := strconv.ParseInt(args, 0, 32)
+	if err != nil {
+		fmt.Printf("Bad id: %v\n", err)
+		return 
+	}
+	tlist, err := this.Process.GetCurrentThreads()
+	if err != nil {
+		fmt.Printf("Failed to get threads: %v\n", err)
+		return 
+	}
+	if int(id) >= len(tlist) {
+		fmt.Printf("Bad id.\n")
+		return 
+	}
+	this.Config.ThreadFilters = append(this.Config.ThreadFilters, &ThreadFilter{
+		Thread: tlist[id],
+		Enable: true,
+	})
+
+}
+func (this *Client) AddThreadFilterName(args string) {
+	this.Config.ThreadFilters = append(this.Config.ThreadFilters, &ThreadFilter{
+		Thread: &controller.Thread{
+			Tid: 0,
+			Name: args,
+		},
+		Enable: true,
+	})
+}
+
+func (this *Client) DeleteThreadFilter(args string) {
+	id, err := strconv.ParseInt(args, 0, 32)
+	if err != nil {
+		fmt.Printf("Bad id: %v\n", err)
+		return 
+	}
+	if int(id) >= len(this.Config.ThreadFilters) {
+		fmt.Printf("Bad id.\n")
+		return 
+	}
+	if this.Config.ThreadFilters[id].Enable == false {
+		fmt.Printf("Bad id.\n")
+		return 
+	}
+	this.Config.ThreadFilters[id].Enable = false
+}
+
+func (this *Client) HandleThread(args []string) {
+	if len(args) == 0 {
+		this.Process.PrintThreads()
+		return
+	}
+	if len(args) >= 2 {
+		switch args[0] {
+		case "add", "+":
+			this.AddThreadFilter(args[1])
+		case "name", "+n":
+			this.AddThreadFilterName(args[1])
+		case "del", "-", "delete":
+			this.DeleteThreadFilter(args[1])
+		case "all":
+			this.Config.ThreadFilters = []*ThreadFilter{}
+		default:
+			fmt.Println("Usage: thread add id\n      thread del id\nUse info t to browse threads.")
+		}
+		return
+	}
+	fmt.Println("Usage: thread add id\n      thread del id\nUse info t to browse threads.")
+}
+
+func (this *Client) PrintThreadFilters() {
+	for id, t := range this.Config.ThreadFilters {
+		if !t.Enable {
+			continue
+		}
+		if t.Thread.Tid != 0 {
+			fmt.Printf("[%d] ThreadID: %d\n", id, t.Thread.Tid)
+			continue
+		}
+		if t.Thread.Name != "" {
+			fmt.Printf("[%d] ThreadName: %s\n", id, t.Thread.Name)
+			continue
+		}
+	}
+}
+
 func (this *Client) HandleInfo(args []string) {
 	if len(args) == 0 {
-		fmt.Println("Usage: info break/b\n       info register/reg")
+		fmt.Println("Usage: info break/b\n       info register/reg/r\n       info thread/t")
 		return
 	}
 	switch args[0] {
@@ -192,8 +295,13 @@ func (this *Client) HandleInfo(args []string) {
 			this.BrkManager.PrintBreakPoints()
 		case "reg", "register", "r":
 			this.Process.PrintContext()
+		case "thread", "t":
+			fmt.Println("Available threads:")
+			this.Process.PrintThreads()
+			fmt.Println("Thread filters:")
+			this.PrintThreadFilters()
 		default:
-			fmt.Println("Usage: info break/b\n       info register/reg")
+			fmt.Println("Usage: info break/b\n       info register/reg/r\n       info threads/t")
 	}
 }
 
@@ -232,7 +340,8 @@ func (this *Client) HandleFinish() {
 		return
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
-	this.BrkManager.SetTempBreak(address)
+	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
+	this.TempAddressAbsolute = this.Process.Context.LR
 	this.HandleContinue()
 }
 
@@ -370,9 +479,11 @@ func (this *Client) HandleUntil(args []string) {
 		return
 	}
 	
-	if err = this.BrkManager.SetTempBreak(address); err != nil {
+	if err = this.BrkManager.SetTempBreak(address, 0); err != nil {
 		fmt.Printf("Failed to set Temporary breakpoint: %v\n", err)
 	} else {
+		this.TempAddressAbsolute = 0
+		// until 先不做线程适配？ 
 		// fmt.Printf("Breakpoint at 0x%x\n", offset)
 		this.HandleContinue()
 	}
@@ -422,7 +533,8 @@ func (this *Client) HandleStep() {
 		return
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
-	this.BrkManager.SetTempBreak(address)
+	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
+	this.TempAddressAbsolute = uint64(NextPC) 
 	this.HandleContinue()
 }
 
@@ -439,7 +551,8 @@ func (this *Client) HandleNext() {
 		return
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
-	this.BrkManager.SetTempBreak(address)
+	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
+	this.TempAddressAbsolute = uint64(NextPC) 
 	this.HandleContinue()
 }
 

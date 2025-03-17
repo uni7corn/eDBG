@@ -23,6 +23,7 @@ type BreakPointManager struct {
 	temporaryBreakPoint *BreakPoint
 	hasTempBreak bool
 	probeHandler *ProbeHandler
+	TempBreakTid uint32
 }
 
 func CreateBreakPointManager(listener IEventListener) *BreakPointManager {
@@ -33,7 +34,7 @@ func checkOffset(offset uint64) bool {
 	return offset%4 == 0
 }
 
-func (this *BreakPointManager) SetTempBreak(address *controller.Address) error {
+func (this *BreakPointManager) SetTempBreak(address *controller.Address, tid uint32) error {
 	offset := address.Offset
 	libInfo := address.LibInfo
 	if checkOffset(offset) == false {
@@ -51,6 +52,7 @@ func (this *BreakPointManager) SetTempBreak(address *controller.Address) error {
 		enable: true,
 		deleted: false,
 	}
+	this.TempBreakTid = tid
 	this.temporaryBreakPoint = brk
 	this.hasTempBreak = true
 	return nil
@@ -94,6 +96,7 @@ func (this *BreakPointManager) SetupProbe() error {
 		}
 		this.hasTempBreak = false
 	} else {
+		this.TempBreakTid = 0
 		err := this.probeHandler.SetupManager(this.breakPoints)
 		if err != nil {
 			return err

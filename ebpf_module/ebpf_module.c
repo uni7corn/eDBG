@@ -6,6 +6,7 @@ struct data_t {
 	__u64 sp;
 	__u64 pc;
     __u64 pstate;
+    __u64 tid;
 };
 
 // struct ringbuf_bpf_map_def SEC("maps/ringbuf_map") ringbuf_map = {
@@ -53,7 +54,8 @@ static __always_inline u32 do_probe(struct pt_regs* ctx, u32 point_key) {
     // data->pid = (u32)(bpf_get_ns_current_pid_tgid() >> 32);
     struct task_struct *task = (struct task_struct *) bpf_get_current_task();
     struct task_struct *group_leader = READ_KERN(task->group_leader);
-    data->pid = (u32)get_task_pid(group_leader);
+    data->pid = (u32) get_task_pid(group_leader);
+    data->tid = (__u64) get_task_pid(task);
 
     for(int i = 0; i < 31; ++i) {
         bpf_probe_read_kernel(&data->regs[i], sizeof(data->regs[i]), &ctx->regs[i]);

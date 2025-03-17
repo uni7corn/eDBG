@@ -7,8 +7,9 @@ import(
 	"eDBG/controller"
 	// "eDBG/utils"
 	"syscall"
+	"strings"
 	"eDBG/cli"
-	// "fmt"
+	"fmt"
 )
 
 type EventListener struct {
@@ -74,15 +75,81 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	this.process.UpdatePidList()
 	bo := this.ByteOrder
 	this.pid = bo.Uint32(data[4:8])
+	nowTid := bo.Uint32(data[12+8*34:16+8*34])
+	PC := bo.Uint64(data[12+8*32:12+8*33])
+	// fmt.Printf("Suspended on pid: %d, tid: %d\n", this.pid, nowTid)
+
+	if this.client.BrkManager.TempBreakTid != 0 {
+		if PC == this.client.TempAddressAbsolute {
+			if nowTid == this.client.BrkManager.TempBreakTid {
+				this.process.WorkTid = nowTid
+				this.process.StoppedPID(this.pid)
+				this.Incomingdata <- data
+				this.client.DoClean <- true
+				return
+			}
+			syscall.Kill(int(this.pid), syscall.SIGCONT)
+			return
+		}
+	}
+
 	for _, ablepid := range this.process.PidList {
 		if this.pid == ablepid {
-			// fmt.Printf("Suspended on pid: %d\n", this.pid)
-			this.process.StoppedPID(this.pid)
 			this.process.WorkPid = this.pid
-			this.process.UpToDate()
-			this.Incomingdata <- data
-			this.client.DoClean <- true
-			return
+			// fmt.Printf("Suspended on pid: %d\n", this.pid)
+			// found := false
+			valid := false
+			for _, t := range this.client.Config.ThreadFilters {
+				if !t.Enable {
+					continue
+				}
+				if t.Thread.Tid != 0 {
+					valid = true
+					if nowTid == t.Thread.Tid {
+						this.process.WorkTid = nowTid
+						this.process.StoppedPID(this.pid)
+						this.Incomingdata <- data
+						this.client.DoClean <- true
+						return
+					}
+					continue
+				}
+				if t.Thread.Name != "" {
+					tList, err := this.process.GetCurrentThreads()
+					if err != nil {
+						fmt.Printf("WARNING: Failed to get threads: %v. Filters on thread name not working.\n", err)
+						continue
+					}
+					found := false
+					for _, tInfo := range tList {
+						if strings.Contains(t.Thread.Name, tInfo.Name) {
+							// 读不全....装一下
+							valid = true
+							found = true
+							if tInfo.Tid == nowTid {
+								this.process.WorkTid = nowTid
+								this.process.StoppedPID(this.pid)
+								this.Incomingdata <- data
+								this.client.DoClean <- true
+								return
+							}
+						}
+					}
+					if !found {
+						fmt.Printf("WARNING: No thread Named %s\n", t.Thread.Name)
+						continue
+					}
+				}
+			}
+			if !valid {
+				// 没有可用的线程过滤器，按照 pid 工作
+				this.process.WorkTid = nowTid
+				this.process.StoppedPID(this.pid)
+				this.Incomingdata <- data
+				this.client.DoClean <- true
+				return
+			}
+			
 		}
 	}
 	

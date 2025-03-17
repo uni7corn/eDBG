@@ -21,11 +21,18 @@ type Process struct {
 	StoppedPid []uint32
 	Context *ProcessContext
 	WorkPid uint32
+	WorkTid uint32
+	Threads map[uint32][]*Thread
+	MapsUpToDate map[uint32]bool
+	ThreadsUpToDate map[uint32]bool
 }
 
 func CreateProcess(packageName string) (*Process, error) {
 	process := &Process{}
 	process.ProcMaps = make(map[uint32]*ProcMaps)
+	process.MapsUpToDate = make(map[uint32]bool)
+	process.ThreadsUpToDate = make(map[uint32]bool)
+	process.Threads = make(map[uint32][]*Thread)
 	process.PackageName = packageName
 	err := process.GetExecPath()
 	if err != nil {
@@ -38,10 +45,10 @@ func CreateProcess(packageName string) (*Process, error) {
 	return process, nil
 }
 
-func (this *Process) UpToDate() {
-	// this.UpdatePidList()
-	this.UpdateMapsPid(this.WorkPid)
-}
+// func (this *Process) UpToDate() {
+// 	// this.UpdatePidList()
+// 	this.UpdateMapsPid(this.WorkPid)
+// }
 
 func (this *Process) GetExecPath() error {
 	exec_path, err := os.Executable()
@@ -68,22 +75,6 @@ func (this *Process) UpdatePidList() {
         this.PidList = append(this.PidList, uint32(value))
     }
     return
-}
-
-func (this *Process) UpdateMapsPid(pid uint32) {
-	procMaps, err := GetProcMaps(pid)
-	if err == nil {
-		this.ProcMaps[pid] = procMaps
-	}
-}
-
-func (this *Process) UpdateMaps() {
-	for _, pid := range this.PidList {
-		procMaps, err := GetProcMaps(pid)
-		if err == nil {
-			this.ProcMaps[pid] = procMaps
-		}
-	}
 }
 
 
@@ -152,9 +143,11 @@ func FindLibPathFromPackage(name string) []string {
 }
 
 func (this *Process) Continue() error {
-	this.UpdatePidList()
-	for _, pid := range this.PidList {
+	// this.UpdatePidList()
+	for _, pid := range this.StoppedPid {
 		// fmt.Printf("Continued pid: %d\n", int(pid))
+		this.MapsUpToDate[pid] = false
+		this.ThreadsUpToDate[pid] = false
         err := syscall.Kill(int(pid), syscall.SIGCONT)
         if err != nil {
             if err == syscall.ESRCH {

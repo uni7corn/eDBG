@@ -34,6 +34,7 @@ func main() {
 		libName string
         hiddis bool
         hidreg bool
+		threadFilters string
 	)
 	var brkFlag string
 
@@ -42,6 +43,7 @@ func main() {
 	flag.StringVar(&libName, "l", "", "Target library name")
     flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
     flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Disassemble Window")
+	flag.StringVar(&threadFilters, "t", "", "Thread name filters, e.g., [name1,name2]")
 	flag.Parse()
 
     if packageName == "" {
@@ -52,10 +54,6 @@ func main() {
         fmt.Println("No Library Specified. Use -l libraryname.so")
         os.Exit(1)
     }
-    // if brkFlag == "" {
-    //     fmt.Println("Initial Breakpoint needed. Use --b [0x1234,0x5678]")
-    //     os.Exit(1)
-    // }
 
 	process, err := controller.CreateProcess(packageName)
 	if err != nil {
@@ -75,37 +73,34 @@ func main() {
         Registers: !hidreg,
         Disasm: !hiddis,
     })
-    eventListener.SetupClient(client)
-    eventListener.Run()
+    
 	brkAddrs, err := ParseBreakPoints(brkFlag)
 	if err != nil {
 		fmt.Println("Create Breakpoints Failed: ", err)
 		os.Exit(1)
 	}
-	
+
+	tNames, err := ParseThreadNames(threadFilters)
+	if err != nil {
+		fmt.Println("Create Thread names Failed: ", err)
+		os.Exit(1)
+	}
+
+	for _, name := range tNames {
+		client.AddThreadFilterName(name)
+	}
+
+	eventListener.SetupClient(client)
+    
 	err = brkManager.Start(library, brkAddrs)
 	if err != nil {
 		fmt.Println("Module start Failed: ", err)
 		os.Exit(1)
 	}
-	fmt.Println("Module started. Press Ctrl+C to quit")
+	fmt.Printf("Working on %s in %s. Press Ctrl+C to quit\n", libName, packageName)
 
-    // go func(){
-    //     scanner := bufio.NewScanner(os.Stdin)
-    //     for {
-    //         scanner.Scan()
-    //         err := scanner.Err()
-    //         if err != nil {
-    //             fmt.Printf("get input from console failed, err:%v", err)
-    //             syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-    //         }
-    //         input_text := scanner.Text()
-    //         if input_text == "q" {
-    //             syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-    //         }
-    //     }
-    // }()
     client.Run()
+	eventListener.Run()
     <-stopper
     process.Continue()
 }
@@ -126,6 +121,20 @@ func ParseBreakPoints(brkFlag string) ([]uint64, error) {
 			return nil, fmt.Errorf("ParseBreakPoints: Invalid address %q: %v", addrStr, err)
 		}
 		brkAddrs = append(brkAddrs, addr)
+	}
+	return brkAddrs, nil
+}
+
+func ParseThreadNames(brkFlag string) ([]string, error) {
+	trimmed := strings.Trim(brkFlag, "[]")
+	if trimmed == "" {
+		return []string{}, nil
+	}
+	addresses := strings.Split(trimmed, ",")
+	var brkAddrs []string
+	for _, addrStr := range addresses {
+		addrStr = strings.TrimSpace(addrStr)
+		brkAddrs = append(brkAddrs, addrStr)
 	}
 	return brkAddrs, nil
 }

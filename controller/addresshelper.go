@@ -49,10 +49,10 @@ func (this *Process) ParseAddress(address uint64) (*Address, error) {
 
 
 func (this *Process) ParseAddressNew(address uint64) (*Address, error) {
-	maps, exsists := this.ProcMaps[this.WorkPid]
-	if exsists == false {
-		return &Address{}, fmt.Errorf("ParseAddress: Bad pid: %x", this.WorkPid)
-	}
+    maps, err := this.GetCurrentMaps()
+    if err != nil {
+        return &Address{}, err
+    }
 	addressParsed, err := maps.ParseAbsoluteAddress(this, address)
 	if err != nil {
 		return &Address{}, err

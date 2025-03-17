@@ -39,7 +39,38 @@ func GetProcMaps(pid uint32) (*ProcMaps, error) {
     return procMaps, nil
 }
 
+func (this *Process) UpdateMapsPid(pid uint32) error {
+	procMaps, err := GetProcMaps(pid)
+	if err == nil {
+		this.ProcMaps[pid] = procMaps
+		this.MapsUpToDate[pid] = true
+		return nil
+	}
+	return err
+}
 
+func (this *Process) UpdateMaps() {
+	for _, pid := range this.PidList {
+		procMaps, err := GetProcMaps(pid)
+		if err == nil {
+			this.ProcMaps[pid] = procMaps
+		}
+	}
+}
+
+func (this *Process) GetCurrentMaps() (*ProcMaps, error) {
+    if val, ok := this.MapsUpToDate[this.WorkPid]; !ok || !val {
+        err := this.UpdateMapsPid(this.WorkPid)
+        if err != nil {
+            return &ProcMaps{}, fmt.Errorf("Failed to update maps: %v", err)
+        }
+    }
+	maps, exsists := this.ProcMaps[this.WorkPid]
+	if exsists == false {
+		return &ProcMaps{}, fmt.Errorf("GetMaps: Bad pid: %x", this.WorkPid)
+	}
+    return maps, nil
+}
 
 func (this *ProcMaps) ReadMaps() error {
 	if this.pid == 0 {
