@@ -74,17 +74,3 @@ func TryRead(pid uint32, remoteAddr uintptr) (bool, string) {
 	}
 	return true, outbuf.String()
 }
-
-// // 示例用法
-// func main() {
-// 	pid := 1234       // 目标进程PID
-// 	addr := 0x7f0000  // 目标内存地址（需对齐）
-// 	buf := make([]byte, 4)
-
-// 	n, err := ReadProcessMemory(pid, uintptr(addr), buf)
-// 	if err != nil {
-// 		fmt.Println("Error:", err)
-// 	} else {
-// 		fmt.Printf("Read %d bytes: %x\n", n, buf)
-// 	}
-// }

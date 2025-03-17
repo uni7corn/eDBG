@@ -132,7 +132,7 @@ loop:
 		} else {
 			this.PreviousCMD = line
 		}
-		
+
 		if line == "" {
 			fmt.Print("(eDBG) ")
 			continue
@@ -620,7 +620,7 @@ func (this *Client) PrintDisassembleInfo(address uint64, len int) {
 			fmt.Printf(">>  0x%x%v\t", address, err)
 		}
 
-		code, err := utils.DisASM(codeBuf[0:4])
+		code, err := utils.DisASM(codeBuf[0:4], address, this.Process)
 		if err == nil {
 			fmt.Printf("%s\n", code)
 		} else {
@@ -634,7 +634,7 @@ func (this *Client) PrintDisassembleInfo(address uint64, len int) {
 				fmt.Printf("    0x%x\t", address+uint64(i))
 			}
 
-			code, err = utils.DisASM(codeBuf[i:i+4])
+			code, err = utils.DisASM(codeBuf[i:i+4], address+uint64(i), this.Process)
 			if err == nil {
 				fmt.Printf("%s\n", code)
 			} else {

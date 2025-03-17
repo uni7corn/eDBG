@@ -2,9 +2,7 @@ package utils
 
 import (
     "fmt"
-    // "strings"
     "golang.org/x/arch/arm64/arm64asm"
-	// "encoding/binary"
 )
 
 type IContext interface {
@@ -15,20 +13,34 @@ type IContext interface {
 	GetPstate() uint64
 }
 
+type IProcess interface {
+    GetSymbol(uint64) string
+}
 
-func DisASM(code []byte) (string, error) {
+func DisASM(code []byte, PC uint64, process IProcess) (string, error) {
 	inst, err := arm64asm.Decode(code)
 	if err != nil {
 		return "", err
 	}
+    if PC == 0 {
+        return inst.String(), nil
+    }
+    switch inst.Op {
+    case arm64asm.B, arm64asm.BL:
+		if target := getBranchTarget(inst, PC); target != 0 {
+            return fmt.Sprintf("%s %s", inst.Op.String(), process.GetSymbol(target)), nil
+        }
+	case arm64asm.CBZ, arm64asm.CBNZ:
+		if _, target := getCBZTarget(inst, PC); target != 0 {
+            return fmt.Sprintf("%s %s, %s", inst.Op.String(), inst.Args[0].String(), process.GetSymbol(target)), nil
+        }
+	case arm64asm.TBZ, arm64asm.TBNZ:
+		if _, _, target := getTBZTarget(inst, PC); target != 0 {
+            return fmt.Sprintf("%s %s", inst.Op.String(), inst.Args[0].String(), inst.Args[1].String(), process.GetSymbol(target)), nil
+        }
+    }
 	return inst.String(), nil
 }
-// func formatToGNUSyntax(inst arm64asm.Inst) string {
-//     s := arm64asm.Plan9Syntax(inst)
-//     s = strings.ToLower(s)
-//     s = strings.Replace(s, "·", "", -1) // 移除 Plan9 特殊字符
-//     return s
-// }
 
 func getCondition(inst arm64asm.Inst) string {
     if inst.Op != arm64asm.B {
@@ -103,7 +115,7 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 			return uintptr(PC + 4), nil
 		}
 	case arm64asm.CBZ, arm64asm.CBNZ:
-		if reg, target := getCBZTarget(inst, PC, ctx); target != 0 {
+		if reg, target := getCBZTarget(inst, PC); target != 0 {
             value := ctx.GetReg(reg)
             if (inst.Op == arm64asm.CBZ && value == 0) ||
                 (inst.Op == arm64asm.CBNZ && value != 0) {
@@ -112,7 +124,7 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
         }
         return uintptr(PC + 4), nil
 	case arm64asm.TBZ, arm64asm.TBNZ:
-		if reg, bit, target := getTBZTarget(inst, PC, ctx); target != 0 {
+		if reg, bit, target := getTBZTarget(inst, PC); target != 0 {
             value := ctx.GetReg(reg)
             bitVal := (value >> bit) & 1
             if (inst.Op == arm64asm.TBZ && bitVal == 0) ||
@@ -127,7 +139,7 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
     return uintptr(PC + 4), nil
 }
 
-func getCBZTarget(inst arm64asm.Inst, PC uint64, ctx IContext) (reg int, target uint64) {
+func getCBZTarget(inst arm64asm.Inst, PC uint64) (reg int, target uint64) {
     if len(inst.Args) < 2 {
         return 0, 0
     }
@@ -140,7 +152,7 @@ func getCBZTarget(inst arm64asm.Inst, PC uint64, ctx IContext) (reg int, target 
 }
 
 // 获取 TBZ/TBNZ 的寄存器、测试位和目标地址
-func getTBZTarget(inst arm64asm.Inst, PC uint64, ctx IContext) (reg int, bit uint64, target uint64) {
+func getTBZTarget(inst arm64asm.Inst, PC uint64) (reg int, bit uint64, target uint64) {
     if len(inst.Args) < 3 {
         return 0, 0, 0
     }

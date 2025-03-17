@@ -25,6 +25,7 @@ type Process struct {
 	Threads map[uint32][]*Thread
 	MapsUpToDate map[uint32]bool
 	ThreadsUpToDate map[uint32]bool
+	Symbols map[uint64]string
 }
 
 func CreateProcess(packageName string) (*Process, error) {
@@ -33,6 +34,7 @@ func CreateProcess(packageName string) (*Process, error) {
 	process.MapsUpToDate = make(map[uint32]bool)
 	process.ThreadsUpToDate = make(map[uint32]bool)
 	process.Threads = make(map[uint32][]*Thread)
+	process.Symbols = make(map[uint64]string)
 	process.PackageName = packageName
 	err := process.GetExecPath()
 	if err != nil {

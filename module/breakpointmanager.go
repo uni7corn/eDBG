@@ -3,7 +3,6 @@ package module
 import (
 	"eDBG/controller"
 	"fmt"
-	// "errors"
 	manager "github.com/gojue/ebpfmanager"
 )
 

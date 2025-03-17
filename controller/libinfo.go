@@ -17,12 +17,14 @@ type LibraryInfo struct {
 	RealFilePath string
 	NonElfOffset uint64
 	Process *Process
+	SymbolExtracted bool
 }
 
 func CreateLibrary(process *Process, libName string) (*LibraryInfo, error) {
 	libInfo := &LibraryInfo{}
 	libInfo.LibName = libName
 	libInfo.Process = process
+	libInfo.SymbolExtracted = false
 	if err := libInfo.ParseLibrary(); err != nil {
 		return &LibraryInfo{}, err
 	}

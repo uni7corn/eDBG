@@ -34,8 +34,8 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
         }
         sym := utils.RandStringBytes(8)
         probe = &manager.Probe{
-            Section:          fmt.Sprintf("uprobe/probe_%d", i+1),
-            EbpfFuncName:     fmt.Sprintf("probe_%d", i+1),
+            Section:          fmt.Sprintf("uprobe/probe_%d", i),
+            EbpfFuncName:     fmt.Sprintf("probe_%d", i),
             AttachToFuncName: sym,
             RealFilePath:     brk.libInfo.RealFilePath,
             BinaryPath:       brk.libInfo.LibPath,
