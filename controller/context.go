@@ -51,7 +51,7 @@ func (this *Process) PrintContext() {
 				fmt.Printf("*X%d\t0x%X%s ◂— %s\n", i, reg, this.GetSymbol(tmpreg), info)
 				continue
 			} else {
-				fmt.Printf("*X%d\t0x%X%s??\n", i, reg, this.GetSymbol(tmpreg))
+				fmt.Printf("*X%d\t0x%X%s\n", i, reg, this.GetSymbol(tmpreg))
 				continue
 			}
 		}
