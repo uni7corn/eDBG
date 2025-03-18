@@ -46,9 +46,9 @@ func (this *Process) PrintContext() {
 			tmpreg -= 0xB400000000000000
 		}
 		if tmpreg > 0x7000000000 {
-			addrinfo, err := this.ParseAddress(tmpreg)
+			_, err := this.ParseAddress(tmpreg)
 			if err == nil {
-				fmt.Printf("*X%d\t0x%X(%s+%x)\n", i, reg, addrinfo.LibInfo.LibName, addrinfo.Offset)
+				fmt.Printf("*X%d\t0x%X%s\n", i, reg, this.GetSymbol(tmpreg))
 				continue
 			}
 		}
@@ -61,17 +61,17 @@ func (this *Process) PrintContext() {
 		}
 		fmt.Printf(" X%d\t0x%X\n", i, reg)
 	}
-	addrinfo, err := this.ParseAddress(this.Context.LR)
+	_, err := this.ParseAddress(this.Context.LR)
 	if err == nil {
-		fmt.Printf("*LR\t0x%X(%s+%x)\n", this.Context.LR, addrinfo.LibInfo.LibName, addrinfo.Offset)
+		fmt.Printf("*LR\t0x%X%s\n", this.Context.LR, this.GetSymbol(this.Context.LR))
 	} else {
 		fmt.Printf(" LR\t0x%X\t", this.Context.LR)
 	}
 	fmt.Printf("*SP\t0x%X\n", this.Context.SP)
 
-	addrinfo, err = this.ParseAddress(this.Context.PC)
+	_, err = this.ParseAddress(this.Context.PC)
 	if err == nil {
-		fmt.Printf("*PC\t0x%X(%s+%x)\n", this.Context.PC, addrinfo.LibInfo.LibName, addrinfo.Offset)
+		fmt.Printf("*PC\t0x%X%s\n", this.Context.PC, this.GetSymbol(this.Context.PC))
 	} else {
 		fmt.Printf(" PC\t0x%X\n", this.Context.PC)
 	}

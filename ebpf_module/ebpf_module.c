@@ -9,11 +9,6 @@ struct data_t {
     __u64 tid;
 };
 
-// struct ringbuf_bpf_map_def SEC("maps/ringbuf_map") ringbuf_map = {
-//     .type = BPF_MAP_TYPE_RINGBUF,
-//     .max_entries = 256*1024,
-// };
-
 struct {                                                                                     
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);                                                                     
     __uint(max_entries, 1);                                                         
@@ -28,23 +23,6 @@ struct {
     __type(value, __u32);                                                                
 } events SEC(".maps");
 
-
-#define READ_KERN(ptr)                                                                         \
-    ({                                                                                         \
-        typeof(ptr) _val;                                                                      \
-        __builtin_memset((void *) &_val, 0, sizeof(_val));                                     \
-        bpf_probe_read((void *) &_val, sizeof(_val), &ptr);                                    \
-        _val;                                                                                  \
-    })
-
-static __always_inline u32 get_task_pid(struct task_struct *task)
-{
-    unsigned int level = 0;
-    struct pid *pid = NULL;
-    pid = READ_KERN(task->thread_pid);
-    level = READ_KERN(pid->level);
-    return READ_KERN(pid->numbers[level].nr);
-}
 
 static __always_inline u32 do_probe(struct pt_regs* ctx, u32 point_key) {
     __u32 zero = 0;

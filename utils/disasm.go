@@ -28,15 +28,15 @@ func DisASM(code []byte, PC uint64, process IProcess) (string, error) {
     switch inst.Op {
     case arm64asm.B, arm64asm.BL:
 		if target := getBranchTarget(inst, PC); target != 0 {
-            return fmt.Sprintf("%s %s", inst.Op.String(), process.GetSymbol(target)), nil
+            return fmt.Sprintf("%s %x%s", inst.Op.String(), target, process.GetSymbol(target)), nil
         }
 	case arm64asm.CBZ, arm64asm.CBNZ:
 		if _, target := getCBZTarget(inst, PC); target != 0 {
-            return fmt.Sprintf("%s %s, %s", inst.Op.String(), inst.Args[0].String(), process.GetSymbol(target)), nil
+            return fmt.Sprintf("%s %s, %x%s", inst.Op.String(), inst.Args[0].String(), target, process.GetSymbol(target)), nil
         }
 	case arm64asm.TBZ, arm64asm.TBNZ:
 		if _, _, target := getTBZTarget(inst, PC); target != 0 {
-            return fmt.Sprintf("%s %s", inst.Op.String(), inst.Args[0].String(), inst.Args[1].String(), process.GetSymbol(target)), nil
+            return fmt.Sprintf("%s %x%s", inst.Op.String(), inst.Args[0].String(), inst.Args[1].String(), target, process.GetSymbol(target)), nil
         }
     }
 	return inst.String(), nil

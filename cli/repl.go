@@ -170,9 +170,9 @@ loop:
 			this.HandleFinish()
 			return
 		case "return":
-			fmt.Println("Command return is not supported because eDBG cannot perform modification. Use finish or fi.")
+			fmt.Println("Command return is not supported because eDBG cannot perform modification. Use finish or fi instead.")
 		case "backtrace", "bt":
-			fmt.Println("Command backtrace is not supported yet.")
+			fmt.Println("Command backtrace is coming soon...")
 		case "jump", "j":
 			fmt.Println("Command jump is not supported because eDBG cannot perform modification.")
 		case "thread", "t":
@@ -187,9 +187,11 @@ loop:
 			this.HandleUntil(args)
 			return
 		case "watch":
-			fmt.Println("Command watch is not supported yet.")
+			fmt.Println("Command watch is coming soon...")
 		case "run", "r":
-			fmt.Println("eDBG do not execute programs. Please run it manually.")
+			fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
+		case "set":
+			this.HandleSet(args)
 		default:
 			fmt.Println("Unknown command:", cmd)
 		}
@@ -197,6 +199,20 @@ loop:
 		fmt.Print("(eDBG) ")
 	}
 }
+
+func (this *Client) HandleSet(args []string) {
+	if len(args) < 2 {
+		fmt.Println("Usage: set <address> <name>")
+		return
+	}
+	address, err := this.ParseUserAddressToAbsolute(args[0])
+	if err != nil {
+		fmt.Printf("Failed to parse address: %v\n", err)
+		return
+	}
+	this.Process.Symbols[address] = args[1]
+}
+
 
 func (this *Client) AddThreadFilter(args string) {
 	id, err := strconv.ParseInt(args, 0, 32)
@@ -426,6 +442,39 @@ func (this *Client) HandleUndisplay(args []string) {
 		return
 	}
 	this.Config.Display[id].Enable = false
+}
+
+func (this *Client) ParseUserAddressToAbsolute(arg string) (uint64, error) {
+	if strings.Contains(arg, "+") {
+		lastIndex := strings.LastIndex(arg, "+")
+		libName := arg[:lastIndex]
+		offset_str := arg[lastIndex+1:]
+		offset, err := strconv.ParseUint(offset_str, 0, 64)
+		if err != nil {
+			return 0, fmt.Errorf("Bad address: %v", err)
+		}
+		if libName == "$" {
+			return this.Process.Context.PC+offset*4, nil
+		} else {
+			libInfo, err := controller.CreateLibrary(this.Process, libName)
+			if err != nil {
+				return 0, err
+			}
+			address := controller.NewAddress(libInfo, offset)
+			return this.Process.GetAbsoluteAddress(address)
+		}
+	} else {
+		offset, err := strconv.ParseUint(arg, 0, 64)
+		// fmt.Printf("Try to set breakpoint at 0x%x\n", offset)
+		if err != nil {
+			return 0, fmt.Errorf("Bad address: %v", err)
+		}
+		if offset > 0x5000000000 {
+			return offset, nil
+		}
+		address := controller.NewAddress(this.Library, offset)
+		return this.Process.GetAbsoluteAddress(address)
+	}
 }
 
 

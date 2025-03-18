@@ -15,3 +15,12 @@ __u32 _version SEC("version") = 0xFFFFFFFE;
         bpf_probe_read((void *) &_val, sizeof(_val), &ptr);                                    \
         _val;                                                                                  \
     })
+
+static __always_inline u32 get_task_pid(struct task_struct *task)
+{
+    unsigned int level = 0;
+    struct pid *pid = NULL;
+    pid = READ_KERN(task->thread_pid);
+    level = READ_KERN(pid->level);
+    return READ_KERN(pid->numbers[level].nr);
+}

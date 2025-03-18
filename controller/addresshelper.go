@@ -153,3 +153,49 @@ func (this *ProcMaps) ParseAbsoluteAddress(process *Process, address uint64) (*A
     }
     return &Address{}, fmt.Errorf("Failed to parse %x: anouymous address", address)
 }
+
+
+func (this *ProcMaps) GetAbsoluteAddressNew(address *Address) (uint64, error) {
+    libInfo := address.LibInfo
+    for _, seg := range this.segments {
+        if seg.libName == libInfo.LibName && seg.baseAddr+address.Offset < seg.endAddr {
+            return seg.baseAddr, nil
+        }
+        if strings.HasSuffix(seg.libName, ".apk") {
+            apk_path := seg.libPath
+            zf, err := zip.OpenReader(apk_path)
+            if err != nil {
+                continue
+            }
+            for _, f := range zf.File {
+                if strings.HasPrefix(f.Name, "lib/arm64-v8a") {
+                    parts := strings.Split(f.Name, "/")
+                    libName := parts[len(parts)-1]
+                    if libInfo.LibName == libName && address.Offset < f.UncompressedSize64 {
+                        offset, err := f.DataOffset()
+                        if err != nil {
+                            return 0, fmt.Errorf("Cannot get library offset: %v.", err)
+                        }
+                        return seg.baseAddr+uint64(offset)-seg.off, nil
+                    }
+                }
+            }
+        }
+    }
+    return 0, fmt.Errorf("Cannot find address %s+%x", libInfo.LibName, address.Offset)
+}
+
+
+func (this *Process) GetAbsoluteAddress(address *Address) (uint64, error) {
+    libInfo := address.LibInfo
+    for _, lib := range DoneLib {
+        if lib.LibInfo.LibName == libInfo.LibName && lib.BaseAddr+address.Offset < lib.EndAddr {
+            return lib.BaseAddr+address.Offset, nil
+        }
+	}
+    maps, err := this.GetCurrentMaps()
+    if err != nil {
+        return 0, fmt.Errorf("Cannot get current maps")
+    }
+    return maps.GetAbsoluteAddressNew(address)
+}

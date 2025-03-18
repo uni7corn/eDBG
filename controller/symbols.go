@@ -156,22 +156,22 @@ func findSymbolOffset(f *elf.File, sym elf.Symbol) (uint64, error) {
 
 func (this *Process) GetSymbol(address uint64) string {
 	if sym, ok := this.Symbols[address]; ok {
-		return sym
+		return fmt.Sprintf("<%s>", sym)
 	}
 	addressInfo, err := this.ParseAddress(address)
 	if err == nil {
 		if addressInfo.LibInfo.SymbolExtracted == true {
-			return fmt.Sprintf("0x%x<%s+%x>", address, addressInfo.LibInfo.LibName, addressInfo.Offset)
+			return fmt.Sprintf("<%s+%x>", addressInfo.LibInfo.LibName, addressInfo.Offset)
 		}
 		err := this.ExportSymbols(address-addressInfo.Offset, addressInfo.LibInfo.RealFilePath, addressInfo.LibInfo.NonElfOffset)
 		if err != nil {
-			fmt.Printf("WARNING: Cannot get symbols from %s\n", addressInfo.LibInfo.RealFilePath)
+			// fmt.Printf("WARNING: Cannot get symbols from %s\n", addressInfo.LibInfo.RealFilePath)
 		}
 		addressInfo.LibInfo.SymbolExtracted = true
 		if sym, ok := this.Symbols[address]; ok {
 			return sym
 		}
-		return fmt.Sprintf("0x%x<%s+%x>", address, addressInfo.LibInfo.LibName, addressInfo.Offset)
+		return fmt.Sprintf("<%s+%x>", addressInfo.LibInfo.LibName, addressInfo.Offset)
 	}
-	return fmt.Sprintf("0x%x", address)
+	return ""
 }
