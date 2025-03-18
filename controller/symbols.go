@@ -169,7 +169,7 @@ func (this *Process) GetSymbol(address uint64) string {
 		}
 		addressInfo.LibInfo.SymbolExtracted = true
 		if sym, ok := this.Symbols[address]; ok {
-			return sym
+			return fmt.Sprintf("<%s>", sym)
 		}
 		return fmt.Sprintf("<%s+%x>", addressInfo.LibInfo.LibName, addressInfo.Offset)
 	}

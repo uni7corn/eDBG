@@ -45,20 +45,17 @@ func (this *Process) PrintContext() {
 		if (tmpreg >> 96) == 0xB400 {
 			tmpreg -= 0xB400000000000000
 		}
-		if tmpreg > 0x7000000000 {
-			_, err := this.ParseAddress(tmpreg)
-			if err == nil {
-				fmt.Printf("*X%d\t0x%X%s\n", i, reg, this.GetSymbol(tmpreg))
-				continue
-			}
-		}
-		if tmpreg > 0x5000000000 {
+		if tmpreg > 0x1000000000 {
 			ok, info := utils.TryRead(this.WorkPid, uintptr(tmpreg))
 			if ok == true {
-				fmt.Printf("*X%d\t0x%X ◂— %s\n", i, reg, info)
+				fmt.Printf("*X%d\t0x%X%s ◂— %s\n", i, reg, this.GetSymbol(tmpreg), info)
+				continue
+			} else {
+				fmt.Printf("*X%d\t0x%X%s??\n", i, reg, this.GetSymbol(tmpreg))
 				continue
 			}
 		}
+
 		fmt.Printf(" X%d\t0x%X\n", i, reg)
 	}
 	_, err := this.ParseAddress(this.Context.LR)

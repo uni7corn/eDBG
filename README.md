@@ -1,6 +1,6 @@
 <div align="center">
   <img src="logo.png"/>
-  
+
   [![GitHub Release](https://img.shields.io/github/v/release/ShinoLeah/eDBG?style=flat-square)](https://github.com/ShinoLeah/eDBG/releases)
   [![License](https://img.shields.io/github/license/ShinoLeah/eDBG?style=flat-square)](LICENSE)
   [![Platform](https://img.shields.io/badge/platform-Android%20ARM64-red.svg?style=flat-square)](https://www.android.com/)
@@ -106,7 +106,7 @@
 
   - 地址+长度+变量名：`disp 0x123456 128 name`，展示同时打印该变量名
 
-    > ⚠️ 若内存地址变化（e.g. 应用重启），此功能将无法输出正确信息。**
+    > ⚠️ 若内存地址变化（e.g. 应用重启），此功能将无法输出正确信息。
 
 - **取消展示内存**：`undisplay / undisp <id>`：取消展示第 id 号变量
 
@@ -143,7 +143,7 @@
 
    本项目在 x86 Linux 下交叉编译
 
-   ```
+   ```shell
    sudo apt-get update
    sudo apt-get install golang==1.18
    sudo apt-get install clang==14
@@ -153,8 +153,9 @@
 
 2. 编译
 
-   ```
+   ```shell
    git clone --recursive https://github.com/ShinoLeah/eDBG.git
+   ./build_env.sh
    make
    ```
 

@@ -25,8 +25,11 @@ type BreakPointManager struct {
 	TempBreakTid uint32
 }
 
-func CreateBreakPointManager(listener IEventListener) *BreakPointManager {
-	return &BreakPointManager{probeHandler: CreateProbeHandler(listener), hasTempBreak: false}
+func CreateBreakPointManager(listener IEventListener, BTF_File string) *BreakPointManager {
+	return &BreakPointManager{
+		probeHandler: CreateProbeHandler(listener, BTF_File), 
+		hasTempBreak: false,
+	}
 }
 
 func checkOffset(offset uint64) bool {
@@ -118,6 +121,10 @@ func (this *BreakPointManager) Start(libInfo *controller.LibraryInfo, brkAddrs [
 			fmt.Printf("Create Breakpoints Failed: %v, skipped.\n", err)
 			continue
 		}
+	}
+	err := this.probeHandler.SetupManagerOptions()
+	if err != nil {
+		return err
 	}
 	return this.SetupProbe()
 }

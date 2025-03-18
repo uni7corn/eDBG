@@ -1,7 +1,7 @@
 #include "utils.h"
 
 struct data_t {
-    u32 pid;
+    __u64 pid;
 	__u64 regs[31];
 	__u64 sp;
 	__u64 pc;
@@ -30,10 +30,13 @@ static __always_inline u32 do_probe(struct pt_regs* ctx, u32 point_key) {
     if (!data) return 0; 
     // struct data_t data;
     // data->pid = (u32)(bpf_get_ns_current_pid_tgid() >> 32);
-    struct task_struct *task = (struct task_struct *) bpf_get_current_task();
-    struct task_struct *group_leader = READ_KERN(task->group_leader);
-    data->pid = (u32) get_task_pid(group_leader);
-    data->tid = (__u64) get_task_pid(task);
+    // struct task_struct *task = (struct task_struct *) bpf_get_current_task();
+    // struct task_struct *group_leader = READ_KERN(task->group_leader);
+    // data->pid = (u32) get_task_pid(group_leader);
+    // data->tid = (__u64) get_task_pid(task);
+
+    data->pid = bpf_get_current_pid_tgid() >> 32;
+    data->tid = (__u32)bpf_get_current_pid_tgid();
 
     for(int i = 0; i < 31; ++i) {
         bpf_probe_read_kernel(&data->regs[i], sizeof(data->regs[i]), &ctx->regs[i]);

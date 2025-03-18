@@ -3,6 +3,7 @@ module eDBG
 go 1.18
 
 require (
+	github.com/cilium/ebpf v0.17.3
 	github.com/gojue/ebpfmanager v0.4.6
 	github.com/shuLhan/go-bindata v4.0.0+incompatible
 	golang.org/x/arch v0.15.0
@@ -16,7 +17,6 @@ replace github.com/gojue/ebpfmanager => ./ebpfmanager
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
-	github.com/cilium/ebpf v0.17.3 // indirect
 	github.com/florianl/go-tc v0.4.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect

@@ -2,11 +2,16 @@ package utils
 
 import (
 	"math/rand"
+	"syscall"
 	"os/exec"
 	"strings"
 	"time"
 	"io/ioutil"
 	"fmt"
+	"compress/gzip"
+	"os"
+	"bytes"
+	"bufio"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -71,4 +76,51 @@ func HexDump(address uint64, data []byte, len int) string {
         builder.WriteString("\n")
     }
     return builder.String()
+}
+
+func CheckBTFConfig() bool {
+    file, err := os.Open("/proc/config.gz")
+    if err != nil {
+        return false
+    }
+    defer file.Close()
+
+    gzReader, err := gzip.NewReader(file)
+    if err != nil {
+        return false
+    }
+    defer gzReader.Close()
+
+    scanner := bufio.NewScanner(gzReader)
+    target := []byte("CONFIG_DEBUG_INFO_BTF=y")
+    for scanner.Scan() {
+        if bytes.Contains(scanner.Bytes(), target) {
+			// fmt.Println(scanner.Text())
+            return true
+        }
+    }
+    return false
+}
+
+func FindBTFAssets() string {
+    var utsname syscall.Utsname
+    err := syscall.Uname(&utsname)
+    if err != nil {
+        fmt.Println("Error:", err)
+        os.Exit(1)
+    }
+    btf_file := "a12-5.10-arm64_min.btf"
+    if strings.Contains(B2S(utsname.Release[:]), "rockchip") {
+        btf_file = "rock5b-5.10-arm64_min.btf"
+    }
+    fmt.Printf("Load btf_file=%s\n", btf_file)
+    return btf_file
+}
+
+func B2S(bs []int8) string {
+	ba := make([]byte, 0, len(bs))
+	for _, b := range bs {
+		ba = append(ba, byte(b))
+	}
+	return string(bytes.TrimSpace(bytes.Trim(ba, "\x00")))
 }

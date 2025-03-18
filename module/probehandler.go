@@ -6,18 +6,63 @@ import (
     "eDBG/utils"
     "eDBG/assets"
     "path/filepath"
-	// "github.com/cilium/ebpf"
-	// "github.com/cilium/ebpf/btf"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
+    "golang.org/x/sys/unix"
+    "math"
 	manager "github.com/gojue/ebpfmanager"
 )
 
 type ProbeHandler struct {
 	bpfManager        *manager.Manager
+    bpfManagerOptions manager.Options
     listener          IEventListener
+    BTF_File          string
 }
 
-func CreateProbeHandler(listener IEventListener) *ProbeHandler {
-    return &ProbeHandler{listener: listener}
+func CreateProbeHandler(listener IEventListener, BTF_File string) *ProbeHandler {
+    return &ProbeHandler{listener: listener, BTF_File: BTF_File}
+}
+
+func (this *ProbeHandler) SetupManagerOptions() error {
+    // 对于没有开启 CONFIG_DEBUG_INFO_BTF 的加载额外的 btf.Spec
+    if this.BTF_File != "" {
+        byteBuf, err := assets.Asset("assets/" + this.BTF_File)
+        if err != nil {
+            return fmt.Errorf("SetupManagerOptions failed, err:%v", err)
+        }
+        spec, err := btf.LoadSpecFromReader((bytes.NewReader(byteBuf)))
+        if err != nil {
+            return fmt.Errorf("SetupManagerOptions failed, err:%v", err)
+        }
+        this.bpfManagerOptions = manager.Options{
+            DefaultKProbeMaxActive: 512,
+            VerifierOptions: ebpf.CollectionOptions{
+                Programs: ebpf.ProgramOptions{
+                    LogSize:     2097152,
+                    KernelTypes: spec,
+                },
+            },
+            RLimit: &unix.Rlimit{
+                Cur: math.MaxUint64,
+                Max: math.MaxUint64,
+            },
+        }
+    } else {
+        this.bpfManagerOptions = manager.Options{
+            DefaultKProbeMaxActive: 512,
+            VerifierOptions: ebpf.CollectionOptions{
+                Programs: ebpf.ProgramOptions{
+                    LogSize:     2097152,
+                },
+            },
+            RLimit: &unix.Rlimit{
+                Cur: math.MaxUint64,
+                Max: math.MaxUint64,
+            },
+        }
+    }
+    return nil
 }
 
 func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
@@ -73,9 +118,12 @@ func (this *ProbeHandler) Run() error {
         return fmt.Errorf("ProbeHandler.Run(): couldn't find asset %v .", err)
     }
 
-    if err = this.bpfManager.Init(bytes.NewReader(byteBuf)); err != nil {
+    if err = this.bpfManager.InitWithOptions(bytes.NewReader(byteBuf), this.bpfManagerOptions); err != nil {
         return fmt.Errorf("ProbeHandler.Run(): couldn't init manager %v", err)
     }
+    // if err = this.bpfManager.Init(bytes.NewReader(byteBuf)); err != nil {
+    //     return fmt.Errorf("ProbeHandler.Run(): couldn't init manager %v", err)
+    // }
 
     if err = this.bpfManager.Start(); err != nil {
         return fmt.Errorf("ProbeHandler.Run(): couldn't start bootstrap manager %v .", err)

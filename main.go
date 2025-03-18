@@ -13,17 +13,11 @@ import (
     "os/signal"
 	"strings"
     "eDBG/module"
-	// "eDBG/utils"
+	"eDBG/utils"
 	"eDBG/controller"
     "eDBG/event"
     _ "github.com/shuLhan/go-bindata" // add for bindata in Makefile
 )
-
-// type Imodule interface {
-// 	Start(*processController.Library, uint64[]) error
-// }
-
-// type Client
 
 func main() {
 	stopper := make(chan os.Signal, 1)
@@ -66,9 +60,13 @@ func main() {
 		fmt.Println("Create Library error: ", err)
 		os.Exit(1)
 	}
+	btfFile := ""
+	if !utils.CheckBTFConfig() {
+		btfFile = utils.FindBTFAssets()
+	}
 
     eventListener := event.CreateEventListener(process)
-    brkManager := module.CreateBreakPointManager(eventListener)
+    brkManager := module.CreateBreakPointManager(eventListener, btfFile)
     client := cli.CreateClient(process, library, brkManager, &cli.UserConfig{
         Registers: !hidreg,
         Disasm: !hiddis,

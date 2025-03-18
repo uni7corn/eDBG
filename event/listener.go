@@ -72,13 +72,13 @@ func (this *EventListener) Run() {
 }
 
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
+	// fmt.Println(data)
 	this.process.UpdatePidList()
 	bo := this.ByteOrder
 	this.pid = bo.Uint32(data[4:8])
 	nowTid := bo.Uint32(data[12+8*34:16+8*34])
 	PC := bo.Uint64(data[12+8*32:12+8*33])
 	// fmt.Printf("Suspended on pid: %d, tid: %d\n", this.pid, nowTid)
-
 	if this.client.BrkManager.TempBreakTid != 0 {
 		if PC == this.client.TempAddressAbsolute {
 			if nowTid == this.client.BrkManager.TempBreakTid {
