@@ -108,7 +108,7 @@
 
 - **Undisplay** `undisplay/undisp <id>`: Remove auto-display
 
-- **Write Memory** `write address hexstring`
+- **Write Memory** `write address hexstring` Target address must be writable
 
 - **Exit** `quit/q`: Exit debugger (won't affect target process)
 
