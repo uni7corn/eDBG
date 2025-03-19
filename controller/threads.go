@@ -60,6 +60,10 @@ func (this *Process) PrintThreads() {
 		return
 	}
 	for id, t := range tList {
-		fmt.Printf("[%d] %d: %s\n", id, t.Tid, t.Name)
+		if t.Tid == this.WorkTid {
+			fmt.Printf(">>[%d] %d: %s\n", id, t.Tid, t.Name)
+		} else {
+			fmt.Printf("  [%d] %d: %s\n", id, t.Tid, t.Name)
+		}
 	}
 }

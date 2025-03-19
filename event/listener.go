@@ -88,6 +88,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 				this.client.DoClean <- true
 				return
 			}
+			this.client.BrkManager.HasTempBreak = true
 			syscall.Kill(int(this.pid), syscall.SIGCONT)
 			return
 		}

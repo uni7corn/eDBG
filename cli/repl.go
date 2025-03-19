@@ -192,6 +192,8 @@ loop:
 			fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
 		case "set":
 			this.HandleSet(args)
+		case "write", "w":
+			this.HandleWrite(args)
 		default:
 			fmt.Println("Unknown command:", cmd)
 		}
@@ -551,7 +553,7 @@ func (this *Client) HandleBreak(args []string) {
 		return
 	}
 	
-	if err = this.BrkManager.CreateBreakPoint(address); err != nil {
+	if err = this.BrkManager.CreateBreakPoint(address, true); err != nil {
 		fmt.Printf("Failed to set breakpoint: %v\n", err)
 	} else {
 		fmt.Printf("Breakpoint at %s+%x\n", address.LibInfo.LibName, address.Offset)
@@ -604,6 +606,52 @@ func (this *Client) HandleNext() {
 	this.TempAddressAbsolute = uint64(NextPC) 
 	this.HandleContinue()
 }
+
+func (this *Client) HandleWrite(args []string) {
+	// fmt.Print("todo")
+	if len(args) < 2 {
+		fmt.Println("Usage: write <address> <hexstring>")
+		return
+	}
+	
+	address, err := strconv.ParseUint(args[0], 0, 64)
+	if err != nil {
+		if strings.HasPrefix(args[0], "X") {
+			regnum, err := strconv.ParseUint(args[0][1:], 0, 64)
+			if err != nil {
+				fmt.Printf("Bad Regnum: %v\n", err)
+				return
+			}
+			if regnum > 31 {
+				fmt.Printf("No such register\n")
+				return
+			}
+			address = this.Process.Context.GetReg(int(regnum)+32)
+
+		} else if args[0] == "SP" {
+			address = this.Process.Context.SP
+		} else {
+			fmt.Printf("Bad address: %v\n", err)
+			return
+		}
+	}
+	
+	data, err := utils.HexStringToBytes(args[1])
+	if err != nil {
+		fmt.Printf("Failed to parse hexstring %s: %v\n", args[1], err)
+		return
+	}
+
+	n, err := utils.WriteProcessMemory(this.Process.WorkPid, uintptr(address), data)
+
+	if err != nil {
+		fmt.Printf("Writing Memory Error: %v\n", err)
+		return
+	}
+	fmt.Printf("%d bytes written.\n", n)
+	fmt.Println(utils.HexDump(address, data, n))
+}
+
 
 func (this *Client) HandleMemory(args []string) {
 	// fmt.Print("todo")

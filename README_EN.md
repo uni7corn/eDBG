@@ -53,9 +53,12 @@
    |        -p         |            Target app package name            |
    |        -l         |          Target shared library name           |
    |        -b         |     Initial breakpoints (comma-separated)     |
+   |        -t         | Thread name filter for eBPF (comma-separated) |
+   |        -i         |        Load config from specified file        |
+   |        -s         |           Save config to input file           |
+   |        -o         |         Save config to specified file         |
    |  -hide-register   |     Disable register info on breakpoints      |
    | -hide-disassemble |     Disable assembly info on breakpoints      |
-   |        -t         | Thread name filter for eBPF (comma-separated) |
 
 4. Launch target app:
 
@@ -104,6 +107,8 @@
   > ⚠️ Memory address changes (e.g., app restart) may invalidate displays
 
 - **Undisplay** `undisplay/undisp <id>`: Remove auto-display
+
+- **Write Memory** `write address hexstring`
 
 - **Exit** `quit/q`: Exit debugger (won't affect target process)
 
@@ -161,7 +166,6 @@
 
 ## 🧑‍💻 Todo
 
-- Save/load configurations
 - Frame support
 - Backtrace functionality
 - Watchpoints

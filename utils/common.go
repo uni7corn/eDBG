@@ -11,6 +11,7 @@ import (
 	"compress/gzip"
 	"os"
 	"bytes"
+	"encoding/hex"
 	"bufio"
 )
 
@@ -123,4 +124,17 @@ func B2S(bs []int8) string {
 		ba = append(ba, byte(b))
 	}
 	return string(bytes.TrimSpace(bytes.Trim(ba, "\x00")))
+}
+
+func HexStringToBytes(hexStr string) ([]byte, error) {
+    // 去除可能的空格或前缀（如 "0x"）
+    cleaned := strings.ReplaceAll(hexStr, " ", "")
+    cleaned = strings.TrimPrefix(cleaned, "0x")
+
+    // 解码为字节数组
+    data, err := hex.DecodeString(cleaned)
+    if err != nil {
+        return nil, fmt.Errorf("invalid hex string: %v", err)
+    }
+    return data, nil
 }

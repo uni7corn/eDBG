@@ -29,6 +29,26 @@ func ReadProcessMemory(pid uint32, remoteAddr uintptr, buffer []byte) (int, erro
 	return n, nil
 }
 
+func WriteProcessMemory(pid uint32, remoteAddr uintptr, data []byte) (int, error) {
+    localIov := []unix.Iovec{
+        {Base: &data[0], Len: uint64(len(data))}, 
+    }
+    remoteIov := []unix.RemoteIovec{
+        {Base: remoteAddr, Len: int(len(data))}, 
+    }
+    n, err := unix.ProcessVMWritev(
+        int(pid),
+        localIov,
+        remoteIov,
+        0, // flags
+    )
+
+    if err != nil {
+        return 0, fmt.Errorf("WriteProcessMemory failed: %v", err)
+    }
+    return n, nil
+}
+
 func TryRead(pid uint32, remoteAddr uintptr) (bool, string) {
 	buf := make([]byte, 8)
 	n, err := ReadProcessMemory(pid, remoteAddr, buf)
