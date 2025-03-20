@@ -83,7 +83,7 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 		}
     case arm64asm.B:
 		cond := getCondition(inst)
-		fmt.Printf("Condition: '%s'\n", cond)
+		// fmt.Printf("Condition: '%s'\n", cond)
 		if conditionMet(cond, pstate) {
 			if target := getBranchTarget(inst, PC); target != 0 {
 				return uintptr(target), nil

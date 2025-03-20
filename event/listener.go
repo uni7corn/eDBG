@@ -79,8 +79,9 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	nowTid := bo.Uint32(data[12+8*34:16+8*34])
 	PC := bo.Uint64(data[12+8*32:12+8*33])
 	// fmt.Printf("Suspended on pid: %d, tid: %d\n", this.pid, nowTid)
+	// fmt.Println(data)
 	if this.client.BrkManager.TempBreakTid != 0 {
-		if PC == this.client.TempAddressAbsolute {
+		if PC == this.client.BrkManager.TempAddressAbsolute {
 			if nowTid == this.client.BrkManager.TempBreakTid {
 				this.process.WorkTid = nowTid
 				this.process.StoppedPID(this.pid)

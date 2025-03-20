@@ -18,17 +18,22 @@ type BreakPoint struct {
 }
 
 type BreakPointManager struct {
+	process *controller.Process
+	EnableHW bool
 	BreakPoints []*BreakPoint
 	temporaryBreakPoint *BreakPoint
 	HasTempBreak bool
 	probeHandler *ProbeHandler
 	TempBreakTid uint32
+	TempAddressAbsolute uint64
 }
 
-func CreateBreakPointManager(listener IEventListener, BTF_File string) *BreakPointManager {
+func CreateBreakPointManager(listener IEventListener, BTF_File string, process *controller.Process, EnableHW bool) *BreakPointManager {
 	return &BreakPointManager{
+		process: process,
 		probeHandler: CreateProbeHandler(listener, BTF_File), 
 		HasTempBreak: false,
+		EnableHW: EnableHW,
 	}
 }
 
@@ -54,6 +59,7 @@ func (this *BreakPointManager) SetTempBreak(address *controller.Address, tid uin
 		Enable: true,
 		Deleted: false,
 	}
+	this.TempAddressAbsolute = address.Absolute
 	this.TempBreakTid = tid
 	this.temporaryBreakPoint = brk
 	this.HasTempBreak = true
@@ -92,14 +98,30 @@ func (this *BreakPointManager) SetupProbe() error {
 	// 	return err
 	// }
 	if this.HasTempBreak == true {
-		err := this.probeHandler.SetupManager(append(this.BreakPoints, this.temporaryBreakPoint))
-		if err != nil {
-			return err
+		if this.EnableHW {
+			fmt.Println("Using perf event")
+			err := this.probeHandler.SetupManager(this.BreakPoints, true)
+			if err != nil {
+				return err
+			}
+			err = this.probeHandler.SetHWBreak(this.process.WorkPid, this.TempAddressAbsolute)
+			if err != nil {
+				fmt.Printf("Failed to open perf event at %x: %v, using uprobes.\n", this.TempAddressAbsolute, err)
+				err := this.probeHandler.SetupManager(append(this.BreakPoints, this.temporaryBreakPoint), false)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			err := this.probeHandler.SetupManager(append(this.BreakPoints, this.temporaryBreakPoint), false)
+			if err != nil {
+				return err
+			}
 		}
 		this.HasTempBreak = false
 	} else {
 		this.TempBreakTid = 0
-		err := this.probeHandler.SetupManager(this.BreakPoints)
+		err := this.probeHandler.SetupManager(this.BreakPoints, false)
 		if err != nil {
 			return err
 		}

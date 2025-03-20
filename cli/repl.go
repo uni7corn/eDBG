@@ -39,13 +39,21 @@ type Client struct {
 	Incoming chan bool
 	Done chan bool
 	DoClean chan bool
-	TempAddressAbsolute uint64
 	PreviousCMD string
 	// PreviousTid uint32
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager, config *UserConfig) *Client {
-	return &Client{library, process, brkManager, config, make(chan bool, 1), make(chan bool, 1), make(chan bool, 1), 0, ""}
+	return &Client{
+		Library: library, 
+		Process: process, 
+		BrkManager: brkManager, 
+		Config: config, 
+		Incoming: make(chan bool, 1), 
+		Done: make(chan bool, 1), 
+		DoClean: make(chan bool, 1), 
+		PreviousCMD: "",
+	}
 }
 
 func (this *Client) Run() {
@@ -359,7 +367,6 @@ func (this *Client) HandleFinish() {
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
-	this.TempAddressAbsolute = this.Process.Context.LR
 	this.HandleContinue()
 }
 
@@ -529,11 +536,14 @@ func (this *Client) HandleUntil(args []string) {
 		fmt.Printf("Failed to parse address: %v\n", err)
 		return
 	}
+	if address.Absolute == 0 {
+		fmt.Printf("Relative address is not support for until\n")
+		return
+	}
 	
 	if err = this.BrkManager.SetTempBreak(address, 0); err != nil {
 		fmt.Printf("Failed to set Temporary breakpoint: %v\n", err)
 	} else {
-		this.TempAddressAbsolute = 0
 		// until 先不做线程适配？ 
 		// fmt.Printf("Breakpoint at 0x%x\n", offset)
 		this.HandleContinue()
@@ -564,7 +574,7 @@ func (this *Client) HandleBreak(args []string) {
 func (this *Client) HandleContinue() {
 	err := this.BrkManager.SetupProbe()
 	if err != nil {
-		fmt.Println("Failed to Continue.")
+		fmt.Printf("Failed to Continue: %v\n", err)
 		this.CleanUp()
 		return
 	}
@@ -585,7 +595,6 @@ func (this *Client) HandleStep() {
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
-	this.TempAddressAbsolute = uint64(NextPC) 
 	this.HandleContinue()
 }
 
@@ -603,7 +612,6 @@ func (this *Client) HandleNext() {
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
-	this.TempAddressAbsolute = uint64(NextPC) 
 	this.HandleContinue()
 }
 

@@ -79,7 +79,7 @@ func HexDump(address uint64, data []byte, len int) string {
     return builder.String()
 }
 
-func CheckBTFConfig() bool {
+func CheckConfig(targetStr string) bool {
     file, err := os.Open("/proc/config.gz")
     if err != nil {
         return false
@@ -93,7 +93,7 @@ func CheckBTFConfig() bool {
     defer gzReader.Close()
 
     scanner := bufio.NewScanner(gzReader)
-    target := []byte("CONFIG_DEBUG_INFO_BTF=y")
+    target := []byte(targetStr)
     for scanner.Scan() {
         if bytes.Contains(scanner.Bytes(), target) {
 			// fmt.Println(scanner.Text())

@@ -14,6 +14,7 @@ type Address struct {
 	LibInfo *LibraryInfo
 	Offset uint64
 	Permission string
+    Absolute uint64
 }
 
 type CachedLibInfo struct {
@@ -38,6 +39,7 @@ func (this *Process) ParseAddress(address uint64) (*Address, error) {
 	for _, lib := range DoneLib {
 		if lib.BaseAddr <= address && address < lib.EndAddr {
 			return &Address {
+                Absolute: address,
 				LibInfo: lib.LibInfo,
 				Offset: address - lib.BaseAddr + lib.Offset,
                 Permission: lib.Permission,
@@ -57,7 +59,7 @@ func (this *Process) ParseAddressNew(address uint64) (*Address, error) {
 	if err != nil {
 		return &Address{}, err
 	}
-	
+	addressParsed.Absolute = address
 	return addressParsed, nil
 }
 

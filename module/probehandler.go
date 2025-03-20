@@ -9,8 +9,20 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
     "golang.org/x/sys/unix"
+    // "syscall"
+    "os"
+    "github.com/cilium/ebpf/perf"
+    // "unsafe"
     "math"
+    // "github.com/cilium/ebpf/internal/unix"
 	manager "github.com/gojue/ebpfmanager"
+)
+
+const (
+	_PERF_TYPE_BREAKPOINT     = 5
+	_PERF_COUNT_HW_BREAKPOINT = 6
+	_HW_BREAKPOINT_X          = 4
+	_HW_BREAKPOINT_LEN_4      = 0x40
 )
 
 type ProbeHandler struct {
@@ -18,10 +30,71 @@ type ProbeHandler struct {
     bpfManagerOptions manager.Options
     listener          IEventListener
     BTF_File          string
+    PerfFd            *perf.Reader
+    Perf_Cleared      bool
+    Has_Perf          bool
+    PerfPid           uint32
+    PerfAddr          uint64
 }
 
 func CreateProbeHandler(listener IEventListener, BTF_File string) *ProbeHandler {
-    return &ProbeHandler{listener: listener, BTF_File: BTF_File}
+    return &ProbeHandler{listener: listener, BTF_File: BTF_File, Perf_Cleared: true, Has_Perf: false}
+}
+
+func (this *ProbeHandler) SetHWBreak(pid uint32, address uint64) error {
+    this.Has_Perf = true
+    this.PerfPid = pid
+    this.PerfAddr = address
+    return nil
+}
+
+// func (this *ProbeHandler) StartListen() error {
+//     go func() {
+//         for {
+
+//         }
+//     }
+// }
+
+func (this *ProbeHandler) SetHWBreakInternel() error {
+    if !this.Has_Perf {
+        return nil
+    }
+    pid := this.PerfPid 
+    address := this.PerfAddr
+    eopt := perf.ExtraPerfOptions{
+        UnwindStack:       false,
+        ShowRegs:          false,
+        PerfMmap:          false,
+        BrkPid:            int(pid),
+        BrkAddr:           address,
+        BrkLen:            1,
+        BrkType:           _HW_BREAKPOINT_X,
+        Sample_regs_user:  (1 << 33) - 1,
+        Sample_stack_user: 0,
+    }
+    buf := os.Getpagesize() * (1 * 1024 / 4)
+    em, found, err := this.bpfManager.GetMap("brk_events")
+    if !found {
+        return fmt.Errorf("map not found")
+    }
+    if err != nil {
+        return fmt.Errorf("Get map failed: %v", err)
+    }
+    rd, err := perf.NewReaderWithOptions(em, buf, perf.ReaderOptions{}, eopt)
+    if err != nil {
+        return fmt.Errorf("Setup perf event failed: %v", err)
+    }
+    this.PerfFd = rd
+    this.Perf_Cleared = false
+    return nil
+}
+
+func (this *ProbeHandler) CloseHWBreak() {
+    if !this.Perf_Cleared {
+        this.PerfFd.Close()
+        this.Perf_Cleared = true
+    }
 }
 
 func (this *ProbeHandler) SetupManagerOptions() error {
@@ -65,7 +138,7 @@ func (this *ProbeHandler) SetupManagerOptions() error {
     return nil
 }
 
-func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
+func (this *ProbeHandler) SetupManager(brks []*BreakPoint, perf bool) error {
     probes := []*manager.Probe{}
     usedCount := 0
     for i, brk := range brks {
@@ -90,6 +163,7 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
         probes = append(probes, probe)
     }
     
+
     if len(probes) == 0 {
         fmt.Println("WARNING: No valid breakpoints set. eDBG may be unable to stop the program.")
     }
@@ -106,6 +180,24 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
                 },
             },
         },
+    }
+    if perf {
+        fmt.Println("setup probe_perf")
+        this.bpfManager.Probes = append(this.bpfManager.Probes,
+            &manager.Probe{
+            	// Section:      "perf_event",
+                Section: "kprobe/perf_output_begin_forward",
+            	EbpfFuncName: "probe_perf",
+                AttachToFuncName: "perf_output_begin_forward",
+            })
+        this.bpfManager.Maps = []*manager.Map{
+            &manager.Map{
+                Name: "brk_events",
+            },
+        }
+        this.Has_Perf = true
+    } else {
+        this.Has_Perf = false
     }
     return nil
 }
@@ -128,12 +220,16 @@ func (this *ProbeHandler) Run() error {
     if err = this.bpfManager.Start(); err != nil {
         return fmt.Errorf("ProbeHandler.Run(): couldn't start bootstrap manager %v .", err)
     }
+    if err = this.SetHWBreakInternel(); err != nil {
+        return fmt.Errorf("Failed to set up Hardware breakpoint: %v", err)
+    }
     // fmt.Println("Module Running...")
     return nil
 }
 
 func (this *ProbeHandler) Stop() error {
     // fmt.Println("Module Stopping...")
+    this.CloseHWBreak()
     return this.bpfManager.Stop(manager.CleanAll)
 }
 
