@@ -167,6 +167,7 @@
 ## 💭 实现原理
 
 - 基本是简单的基于 uprobe 和 SIGSTOP / SIGCONT 的简易调试...填坑中
+- [eDBG 使用进阶：避免 uprobes 产生可被察觉的特征](https://www.sh1no.icu/posts/28348c4/)
 
 ## 🧑‍💻 To Do
 
