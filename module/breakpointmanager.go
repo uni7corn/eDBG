@@ -2,6 +2,7 @@ package module
 
 import (
 	"eDBG/controller"
+	"eDBG/utils"
 	"fmt"
 	manager "github.com/gojue/ebpfmanager"
 )
@@ -23,7 +24,7 @@ type BreakPointManager struct {
 	BreakPoints []*BreakPoint
 	temporaryBreakPoint *BreakPoint
 	HasTempBreak bool
-	probeHandler *ProbeHandler
+	ProbeHandler *ProbeHandler
 	TempBreakTid uint32
 	TempAddressAbsolute uint64
 }
@@ -31,7 +32,7 @@ type BreakPointManager struct {
 func CreateBreakPointManager(listener IEventListener, BTF_File string, process *controller.Process, EnableHW bool) *BreakPointManager {
 	return &BreakPointManager{
 		process: process,
-		probeHandler: CreateProbeHandler(listener, BTF_File), 
+		ProbeHandler: CreateProbeHandler(listener, BTF_File), 
 		HasTempBreak: false,
 		EnableHW: EnableHW,
 	}
@@ -91,7 +92,10 @@ func (this *BreakPointManager) CreateBreakPoint(address *controller.Address, ena
 	this.BreakPoints = append(this.BreakPoints, brk)
 	return nil
 }
-
+func (this *BreakPointManager) UseUprobe() error {
+	// fmt.Println("Using uprobes to set temporary breakpoint.")
+	return this.ProbeHandler.SetupManager(append(this.BreakPoints, this.temporaryBreakPoint), false)
+}
 func (this *BreakPointManager) SetupProbe() error {
 	// err := probeHandler.Init()
 	// if err != nil {
@@ -99,21 +103,34 @@ func (this *BreakPointManager) SetupProbe() error {
 	// }
 	if this.HasTempBreak == true {
 		if this.EnableHW {
-			fmt.Println("Using perf event")
-			err := this.probeHandler.SetupManager(this.BreakPoints, true)
+			// fmt.Println("Using perf event")
+			err := this.ProbeHandler.SetupManager(this.BreakPoints, true)
 			if err != nil {
 				return err
 			}
-			err = this.probeHandler.SetHWBreak(this.process.WorkPid, this.TempAddressAbsolute)
+			safe, err := utils.SafeAddress(this.process.WorkPid, this.TempAddressAbsolute)
+			// 如果断点是跳转指令，则我们需要 pstate 寄存器来预测下一条指令位置，因此必须使用 uprobe。
+			// 巧合的是，此时使用 uprobe 是安全的
 			if err != nil {
-				fmt.Printf("Failed to open perf event at %x: %v, using uprobes.\n", this.TempAddressAbsolute, err)
-				err := this.probeHandler.SetupManager(append(this.BreakPoints, this.temporaryBreakPoint), false)
+				fmt.Printf("Failed parse current addr: %v\n", this.TempAddressAbsolute, err)
+			}
+			if !safe {
+				err = this.ProbeHandler.SetHWBreak(this.process.WorkPid, this.TempAddressAbsolute)
+				if err != nil {
+					fmt.Printf("Failed to open perf event at %x: %v\n", this.TempAddressAbsolute, err)
+					err = this.UseUprobe()
+					if err != nil {
+						return err
+					}
+				}
+			} else {
+				err := this.UseUprobe()
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := this.probeHandler.SetupManager(append(this.BreakPoints, this.temporaryBreakPoint), false)
+			err := this.UseUprobe()
 			if err != nil {
 				return err
 			}
@@ -121,14 +138,14 @@ func (this *BreakPointManager) SetupProbe() error {
 		this.HasTempBreak = false
 	} else {
 		this.TempBreakTid = 0
-		err := this.probeHandler.SetupManager(this.BreakPoints, false)
+		err := this.ProbeHandler.SetupManager(this.BreakPoints, false)
 		if err != nil {
 			return err
 		}
 	}
 	
 	
-	err := this.probeHandler.Run()
+	err := this.ProbeHandler.Run()
 	// fmt.Println("probe is running..")
 	if err != nil {
 		return err
@@ -144,7 +161,7 @@ func (this *BreakPointManager) Start(addresss []*controller.Address) error {
 			continue
 		}
 	}
-	err := this.probeHandler.SetupManagerOptions()
+	err := this.ProbeHandler.SetupManagerOptions()
 	if err != nil {
 		return err
 	}
@@ -152,7 +169,7 @@ func (this *BreakPointManager) Start(addresss []*controller.Address) error {
 }
 
 func (this *BreakPointManager) Stop() error {
-	return this.probeHandler.Stop()
+	return this.ProbeHandler.Stop()
 }
 
 func (this *BreakPointManager) PrintBreakPoints() {

@@ -18,6 +18,7 @@ type EventListener struct {
 	process *controller.Process
 	ByteOrder binary.ByteOrder
 	Incomingdata chan []byte
+	// EnableHW 	bool
 }
 
 // type Event struct {
@@ -26,7 +27,12 @@ type EventListener struct {
 // }
 
 func CreateEventListener(process *controller.Process) *EventListener {
-	return &EventListener{process: process, ByteOrder: getHostByteOrder(), Incomingdata: make(chan []byte, 512)}
+	return &EventListener{
+		process: process, 
+		ByteOrder: getHostByteOrder(), 
+		Incomingdata: make(chan []byte, 512),
+		// EnableHW: EnableHW,
+	}
 }
 
 func (this *EventListener) SetupClient(client *cli.Client) {
@@ -46,6 +52,7 @@ func getHostByteOrder() binary.ByteOrder {
 
 func (this *EventListener) Workdata(data []byte) {
 	<- this.client.Done
+	// fmt.Println(data)	
 	// fmt.Println("Working data")
 	bo := this.ByteOrder
 	context := &controller.ProcessContext{}
@@ -55,7 +62,11 @@ func (this *EventListener) Workdata(data []byte) {
 	context.LR = bo.Uint64(data[12+8*30:12+8*31])
 	context.SP = bo.Uint64(data[12+8*31:12+8*32])
 	context.PC = bo.Uint64(data[12+8*32:12+8*33])
-	context.Pstate = bo.Uint64(data[12+8*33:12+8*34])
+	// context.Pr
+	if len(data) >= 284 {
+		// 硬件断点无法采样 pstate
+		context.Pstate = bo.Uint64(data[12+8*33:12+8*34])
+	}
 	this.process.Context = context
 	// fmt.Println("Done data")
 	this.client.Incoming <- true
@@ -81,13 +92,23 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	// fmt.Printf("Suspended on pid: %d, tid: %d\n", this.pid, nowTid)
 	// fmt.Println(data)
 	if this.client.BrkManager.TempBreakTid != 0 {
-		if PC == this.client.BrkManager.TempAddressAbsolute {
+		if PC == this.client.BrkManager.TempAddressAbsolute || PC == 0xFFFFFFFF {
 			if nowTid == this.client.BrkManager.TempBreakTid {
 				this.process.WorkTid = nowTid
 				this.process.StoppedPID(this.pid)
-				this.Incomingdata <- data
+				if PC == 0xFFFFFFFF {
+					// 硬件断点
+					dataRaw := <-this.client.BrkManager.ProbeHandler.Record
+					this.Incomingdata <- dataRaw.RawSample[12:]
+				} else {
+					this.Incomingdata <- data
+				}
+				
 				this.client.DoClean <- true
 				return
+			}
+			if PC == 0xFFFFFFFF {
+				<- this.client.BrkManager.ProbeHandler.Record // 舍弃这个 Sample
 			}
 			this.client.BrkManager.HasTempBreak = true
 			syscall.Kill(int(this.pid), syscall.SIGCONT)

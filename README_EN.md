@@ -59,6 +59,7 @@
    |        -o         |         Save config to specified file         |
    |  -hide-register   |     Disable register info on breakpoints      |
    | -hide-disassemble |     Disable assembly info on breakpoints      |
+   |    -disable-hw    |         Disable Hardware breakpoints          |
 
 4. Launch target app:
 

@@ -121,7 +121,7 @@ func (this *Client) StopProbes() {
 	// fmt.Println("Doing Cleaning")
 	err := this.BrkManager.Stop()
 	if err != nil {
-		fmt.Println("Failed to terminate.")
+		fmt.Println("Failed to terminate.", err)
 		this.CleanUp()
 	}
 	// fmt.Println("Done Clean")
@@ -541,7 +541,7 @@ func (this *Client) HandleUntil(args []string) {
 		return
 	}
 	
-	if err = this.BrkManager.SetTempBreak(address, 0); err != nil {
+	if err = this.BrkManager.SetTempBreak(address, this.Process.WorkTid); err != nil {
 		fmt.Printf("Failed to set Temporary breakpoint: %v\n", err)
 	} else {
 		// until 先不做线程适配？ 

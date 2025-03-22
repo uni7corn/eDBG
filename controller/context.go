@@ -62,7 +62,7 @@ func (this *Process) PrintContext() {
 	if err == nil {
 		fmt.Printf("*LR\t0x%X%s\n", this.Context.LR, this.GetSymbol(this.Context.LR))
 	} else {
-		fmt.Printf(" LR\t0x%X\t", this.Context.LR)
+		fmt.Printf(" LR\t0x%X\n", this.Context.LR)
 	}
 	fmt.Printf("*SP\t0x%X\n", this.Context.SP)
 

@@ -59,6 +59,7 @@
    | -o filename       | 保存进度到指定文件名（与 -s 冲突） |
    | -hide-register    | 禁用寄存器信息输出                 |
    | -hide-disassemble | 禁用反汇编代码输出                 |
+   | -disable-hw       | 禁用硬件断点，详见“实现原理”       |
 
 3. 运行被调试 APP
 
@@ -166,7 +167,9 @@
 
 ## 💭 实现原理
 
-- 基本是简单的基于 uprobe 和 SIGSTOP / SIGCONT 的简易调试...填坑中
+- 所有断点均基于 uprobe，如果你很在意被检测到，请参考最下方文章
+- `step / next / until / finish` 在默认情况下使用硬件断点，无法被用户态探测到，可以放心使用（如果这个功能没法工作，考虑开启 `-disable-hw` 选项）
+- 建议使用 b 在跳转指令处下断点搭配单步使用。
 - [eDBG 使用进阶：避免 uprobes 产生可被察觉的特征](https://www.sh1no.icu/posts/28348c4/)
 
 ## 🧑‍💻 To Do

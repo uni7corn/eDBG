@@ -82,7 +82,7 @@ func main() {
 	flag.StringVar(&threadFilters, "t", "", "Thread name filters, e.g., [name1,name2]")
 	flag.StringVar(&inputfile, "i", "", "Input file saved from edbg. e.g. sample.edbg")
 	flag.BoolVar(&save, "s", false, "Save your progress to input file")
-	// flag.BoolVar(&disableHW, "disable-hw", false, "Disable hardware breakpoints")
+	flag.BoolVar(&disableHW, "disable-hw", false, "Disable hardware breakpoints")
 	flag.StringVar(&outputfile, "o", "&&NotSetNotSetNotSetO=O", "Save your progress to specified file")
 	flag.Parse()
 
@@ -130,16 +130,10 @@ func main() {
 	if !utils.CheckConfig("CONFIG_DEBUG_INFO_BTF=y") {
 		btfFile = utils.FindBTFAssets()
 	}
-	// if !utils.CheckConfig("CONFIG_HAVE_HW_BREAKPOINT=y") {
-	// 	fmt.Println("Hardware breakpoints not enabled. Using uprobes.")
-	// 	disableHW = true
-	// }
-	disableHW = true
-	// 未完成的构思：在 step/next/until/finish 时使用基于 perf_event 的硬件断点，这样只要断点都设在跳转指令上
-	// 				就无法在 /proc/pid/maps 找到 [uprobes] 条目，可以减少引入的特征，但是对 perf_event 的监听
-	//				有一些问题，似乎无法在命中 perf_event 的时候向目标程序发送信号？还在研究这部分功能怎么做
-	//				或许借助 kprobe？有没有好心人指导一下或者提提 PR... 另外 perf_event 的触发次数好像也有点异常
-
+	if !utils.CheckConfig("CONFIG_HAVE_HW_BREAKPOINT=y") {
+		fmt.Println("Hardware breakpoints not enabled. Using uprobes.")
+		disableHW = true
+	}
     eventListener := event.CreateEventListener(process)
     brkManager := module.CreateBreakPointManager(eventListener, btfFile, process, !disableHW)
     client := cli.CreateClient(process, library, brkManager, &cli.UserConfig{

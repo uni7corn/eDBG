@@ -3,6 +3,7 @@ package module
 import (
     "bytes"
 	"fmt"
+    "errors"
     "eDBG/utils"
     "eDBG/assets"
     "path/filepath"
@@ -35,10 +36,17 @@ type ProbeHandler struct {
     Has_Perf          bool
     PerfPid           uint32
     PerfAddr          uint64
+    Record            chan perf.Record
 }
 
 func CreateProbeHandler(listener IEventListener, BTF_File string) *ProbeHandler {
-    return &ProbeHandler{listener: listener, BTF_File: BTF_File, Perf_Cleared: true, Has_Perf: false}
+    return &ProbeHandler{
+        listener: listener, 
+        BTF_File: BTF_File, 
+        Perf_Cleared: true, 
+        Has_Perf: false,
+        Record: make(chan perf.Record, 1),
+    }
 }
 
 func (this *ProbeHandler) SetHWBreak(pid uint32, address uint64) error {
@@ -48,14 +56,6 @@ func (this *ProbeHandler) SetHWBreak(pid uint32, address uint64) error {
     return nil
 }
 
-// func (this *ProbeHandler) StartListen() error {
-//     go func() {
-//         for {
-
-//         }
-//     }
-// }
-
 func (this *ProbeHandler) SetHWBreakInternel() error {
     if !this.Has_Perf {
         return nil
@@ -64,11 +64,11 @@ func (this *ProbeHandler) SetHWBreakInternel() error {
     address := this.PerfAddr
     eopt := perf.ExtraPerfOptions{
         UnwindStack:       false,
-        ShowRegs:          false,
+        ShowRegs:          true,
         PerfMmap:          false,
         BrkPid:            int(pid),
         BrkAddr:           address,
-        BrkLen:            1,
+        BrkLen:            4,
         BrkType:           _HW_BREAKPOINT_X,
         Sample_regs_user:  (1 << 33) - 1,
         Sample_stack_user: 0,
@@ -87,6 +87,19 @@ func (this *ProbeHandler) SetHWBreakInternel() error {
     }
     this.PerfFd = rd
     this.Perf_Cleared = false
+    go func() {
+        for {
+            record, err := rd.ReadWithExtraOptions(&eopt)
+            if err != nil {
+                if errors.Is(err, perf.ErrClosed) {
+                    return
+                }
+                fmt.Println("Got record Failed: ", err)
+            }
+            // fmt.Println("Got record: ", record.RawSample)
+            this.Record <- record
+        }
+    }()
     return nil
 }
 
@@ -182,13 +195,13 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint, perf bool) error {
         },
     }
     if perf {
-        fmt.Println("setup probe_perf")
+        // fmt.Println("setup probe_perf")
         this.bpfManager.Probes = append(this.bpfManager.Probes,
             &manager.Probe{
             	// Section:      "perf_event",
-                Section: "kprobe/perf_output_begin_forward",
+                Section: "kprobe/perf_output_sample",
             	EbpfFuncName: "probe_perf",
-                AttachToFuncName: "perf_output_begin_forward",
+                AttachToFuncName: "perf_output_sample",
             })
         this.bpfManager.Maps = []*manager.Map{
             &manager.Map{

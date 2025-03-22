@@ -54,6 +54,23 @@ func getCondition(inst arm64asm.Inst) string {
     return "AL"
 }
 
+func SafeAddress(pid uint32, PC uint64) (bool, error) {
+    asm := make([]byte, 4)
+	n, err := ReadProcessMemory(pid, uintptr(PC), asm)
+    if n < 4 || err != nil {
+		return true, fmt.Errorf("Failed to read instruction: %v", err)
+	}
+
+    inst, err := arm64asm.Decode(asm)
+    if err != nil {
+        return true, fmt.Errorf("Failed to disassemble instruction: %v", err)
+    }
+    switch inst.Op {
+	case arm64asm.RET, arm64asm.BR, arm64asm.B, arm64asm.BL, arm64asm.BLR, arm64asm.CBZ, arm64asm.CBNZ, arm64asm.TBZ, arm64asm.TBNZ:
+        return true, nil
+    }
+    return false, nil
+}
 
 func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 	PC := ctx.GetPC()

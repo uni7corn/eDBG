@@ -85,33 +85,21 @@ PROBE(20)
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
 } brk_events SEC(".maps");
+// struct bpf_perf_event_data * bpf_ctx
+// SEC("perf_event")
 
-SEC("perf_event")
-int probe_perf(struct bpf_perf_event_data * bpf_ctx) {
-    // 并不能正确运行
-    struct pt_regs *ctx = (struct pt_regs *)(&bpf_ctx->regs);
+SEC("kprobe/perf_output_sample")
+int probe_perf(struct pt_regs *ctx ) {
     __u32 zero = 0;
     struct data_t *data = bpf_map_lookup_elem(&event_map, &zero);
     if (!data) return 0; 
-
     data->pid = bpf_get_current_pid_tgid() >> 32;
-    data->pid = 114514;
     data->tid = (__u32)bpf_get_current_pid_tgid();
-
-    // struct task_struct *task = (struct task_struct *) bpf_get_current_task();
-    // struct task_struct *group_leader = READ_KERN(task->group_leader);
-    // data->pid = (u32) get_task_pid(group_leader);
-    // data->tid = (__u64) get_task_pid(task);
-
     for(int i = 0; i < 31; ++i) {
         bpf_probe_read_kernel(&data->regs[i], sizeof(data->regs[i]), &ctx->regs[i]);
     }
-    
-    bpf_probe_read_kernel(&data->sp, sizeof(data->sp), &ctx->sp);
-    bpf_probe_read_kernel(&data->pc, sizeof(data->pc), &ctx->pc);
-    bpf_probe_read_kernel(&data->pstate, sizeof(data->pstate), &ctx->pstate);
+    data->pc = 0xffffffff; // 从 fd 读寄存器数据
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, data, sizeof(struct data_t));
-    // bpf_printk("mkdir (vfs hook point)\n");
     bpf_send_signal(19);
     return 0;
 }
