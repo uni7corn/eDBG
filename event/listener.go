@@ -18,20 +18,14 @@ type EventListener struct {
 	process *controller.Process
 	ByteOrder binary.ByteOrder
 	Incomingdata chan []byte
-	// EnableHW 	bool
 }
 
-// type Event struct {
-// 	pid Uint32
-// 	ctx *EventContext
-// }
 
 func CreateEventListener(process *controller.Process) *EventListener {
 	return &EventListener{
 		process: process, 
 		ByteOrder: getHostByteOrder(), 
 		Incomingdata: make(chan []byte, 512),
-		// EnableHW: EnableHW,
 	}
 }
 
@@ -52,8 +46,6 @@ func getHostByteOrder() binary.ByteOrder {
 
 func (this *EventListener) Workdata(data []byte) {
 	<- this.client.Done
-	// fmt.Println(data)	
-	// fmt.Println("Working data")
 	bo := this.ByteOrder
 	context := &controller.ProcessContext{}
 	for i := 12; i < 12+8*30; i += 8 {
@@ -62,13 +54,11 @@ func (this *EventListener) Workdata(data []byte) {
 	context.LR = bo.Uint64(data[12+8*30:12+8*31])
 	context.SP = bo.Uint64(data[12+8*31:12+8*32])
 	context.PC = bo.Uint64(data[12+8*32:12+8*33])
-	// context.Pr
 	if len(data) >= 284 {
 		// 硬件断点无法采样 pstate
 		context.Pstate = bo.Uint64(data[12+8*33:12+8*34])
 	}
 	this.process.Context = context
-	// fmt.Println("Done data")
 	this.client.Incoming <- true
 }
 
@@ -76,21 +66,17 @@ func (this *EventListener) Run() {
 	go func() {
 		for {
 			data := <- this.Incomingdata
-			// fmt.Println("Recieved data")
 			this.Workdata(data)
 		}
 	}()
 }
 
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
-	// fmt.Println(data)
 	this.process.UpdatePidList()
 	bo := this.ByteOrder
 	this.pid = bo.Uint32(data[4:8])
 	nowTid := bo.Uint32(data[12+8*34:16+8*34])
 	PC := bo.Uint64(data[12+8*32:12+8*33])
-	// fmt.Printf("Suspended on pid: %d, tid: %d\n", this.pid, nowTid)
-	// fmt.Println(data)
 	if this.client.BrkManager.TempBreakTid != 0 {
 		if PC == this.client.BrkManager.TempAddressAbsolute || PC == 0xFFFFFFFF {
 			if nowTid == this.client.BrkManager.TempBreakTid {
@@ -107,10 +93,11 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 				this.client.DoClean <- true
 				return
 			}
+			// 单步调试断点被其他线程命中
 			if PC == 0xFFFFFFFF {
 				<- this.client.BrkManager.ProbeHandler.Record // 舍弃这个 Sample
 			}
-			this.client.BrkManager.HasTempBreak = true
+			// this.client.BrkManager.HasTempBreak = true // 之前脑子进水了引入了一个 bug
 			syscall.Kill(int(this.pid), syscall.SIGCONT)
 			return
 		}
@@ -119,8 +106,6 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	for _, ablepid := range this.process.PidList {
 		if this.pid == ablepid {
 			this.process.WorkPid = this.pid
-			// fmt.Printf("Suspended on pid: %d\n", this.pid)
-			// found := false
 			valid := false
 			for _, t := range this.client.Config.ThreadFilters {
 				if !t.Enable {
@@ -146,7 +131,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 					found := false
 					for _, tInfo := range tList {
 						if strings.Contains(t.Thread.Name, tInfo.Name) {
-							// 读不全....装一下
+							// 线程名称有长度限制会被截断，尽量支持用户指定完整的线程名称
 							valid = true
 							found = true
 							if tInfo.Tid == nowTid {

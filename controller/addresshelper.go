@@ -70,13 +70,11 @@ func (this *ProcMaps) ParseAbsoluteAddress(process *Process, address uint64) (*A
                 return &Address{}, fmt.Errorf("Failed to parse %x: anouymous address", address)
             }
 
-			// fmt.Printf("Lib found in %s\n", seg.libPath)
 
             if strings.HasSuffix(seg.libName, ".apk") {
                 apk_path := seg.libPath
                 lib := &LibraryInfo{Process: process, RealFilePath: apk_path}
                 off := address - seg.baseAddr + seg.off
-				// fmt.Printf("Processing apk: %x in %x offset %x\n", address, seg.baseAddr, off)
                 zf, err := zip.OpenReader(apk_path)
                 if err != nil {
                     return &Address{}, err
@@ -87,9 +85,7 @@ func (this *ProcMaps) ParseAbsoluteAddress(process *Process, address uint64) (*A
                         if err != nil {
                             return &Address{}, err
                         }
-						// fmt.Printf("Processing file %s, range %x-%x\n", f.Name, uint64(offset), f.UncompressedSize64)
-                        if uint64(offset) <= off && off < uint64(offset) + f.UncompressedSize64 {
-							// fmt.Printf("Checked OK!")
+						if uint64(offset) <= off && off < uint64(offset) + f.UncompressedSize64 {
                             parts := strings.Split(f.Name, "/")
                             lib.LibName = parts[len(parts)-1]
                             lib.LibPath = filepath.Join(process.ExecPath, lib.LibName)

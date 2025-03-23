@@ -544,11 +544,8 @@ func (this *Client) HandleUntil(args []string) {
 	if err = this.BrkManager.SetTempBreak(address, this.Process.WorkTid); err != nil {
 		fmt.Printf("Failed to set Temporary breakpoint: %v\n", err)
 	} else {
-		// until 先不做线程适配？ 
-		// fmt.Printf("Breakpoint at 0x%x\n", offset)
 		this.HandleContinue()
 	}
-	// fmt.Printf("Breakpoint at 0x%x!!", offset)
 }
 
 
@@ -568,7 +565,6 @@ func (this *Client) HandleBreak(args []string) {
 	} else {
 		fmt.Printf("Breakpoint at %s+%x\n", address.LibInfo.LibName, address.Offset)
 	}
-	// fmt.Printf("Breakpoint at 0x%x!!", offset)
 }
 
 func (this *Client) HandleContinue() {
@@ -587,13 +583,11 @@ func (this *Client) HandleStep() {
 		fmt.Printf("Failed to predict next addr: %v\n", err)
 		return
 	}
-	// fmt.Printf("Next addr: %x\n", NextPC)
 	address, err := this.Process.ParseAddress(uint64(NextPC))
 	if err != nil {
 		fmt.Printf("Failed to parse nextPC: %v\n", err)
 		return
 	}
-	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
 	this.HandleContinue()
 }
@@ -604,19 +598,16 @@ func (this *Client) HandleNext() {
 		fmt.Printf("Failed to predict next addr: %v\n", err)
 		return
 	}
-	// fmt.Printf("Next addr: %x\n", NextPC)
 	address, err := this.Process.ParseAddress(uint64(NextPC))
 	if err != nil {
 		fmt.Printf("Failed to parse nextPC: %v\n", err)
 		return
 	}
-	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
 	this.HandleContinue()
 }
 
 func (this *Client) HandleWrite(args []string) {
-	// fmt.Print("todo")
 	if len(args) < 2 {
 		fmt.Println("Usage: write <address> <hexstring>")
 		return
@@ -662,7 +653,6 @@ func (this *Client) HandleWrite(args []string) {
 
 
 func (this *Client) HandleMemory(args []string) {
-	// fmt.Print("todo")
 	if len(args) == 0 {
 		fmt.Println("Usage: x <address> <length>")
 		return
