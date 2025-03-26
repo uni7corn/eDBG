@@ -48,18 +48,18 @@
    ./eDBG -p com.package.name -l libname.so -b 0x123456
    ```
 
-   |      Option       |                  Description                  |
-   | :---------------: | :-------------------------------------------: |
-   |        -p         |            Target app package name            |
-   |        -l         |          Target shared library name           |
-   |        -b         |     Initial breakpoints (comma-separated)     |
-   |        -t         | Thread name filter for eBPF (comma-separated) |
-   |        -i         |        Load config from specified file        |
-   |        -s         |           Save config to input file           |
-   |        -o         |         Save config to specified file         |
-   |  -hide-register   |     Disable register info on breakpoints      |
-   | -hide-disassemble |     Disable assembly info on breakpoints      |
-   |    -disable-hw    |         Disable Hardware breakpoints          |
+   |      Option       |                         Description                          |
+   | :---------------: | :----------------------------------------------------------: |
+   |        -p         |                   Target app package name                    |
+   |        -l         |                  Target shared library name                  |
+   |        -b         |            Initial breakpoints (comma-separated)             |
+   |        -t         |        Thread name filter for eBPF (comma-separated)         |
+   |        -i         |               Load config from specified file                |
+   |        -s         |                  Save config to input file                   |
+   |        -o         |                Save config to specified file                 |
+   |  -hide-register   |             Disable register info on breakpoints             |
+   | -hide-disassemble |             Disable assembly info on breakpoints             |
+   |    -disable-hw    | Disable Hardware breakpoints(Refer to the 'Implementation' section) |
 
 4. Launch target app:
 
@@ -163,7 +163,8 @@
 
 ## 💭 Implementation
 
-- Basic uprobe-based debugging with SIGSTOP/SIGCONT signals (Documentation in progress)
+- All breakpoints are implemented using uprobes. It is recommended to place breakpoints on jump instructions (B-series instructions/RET/CBZ/TBNZ) to avoid introducing identifiable signatures in `/proc/maps`.
+2. The `step/next/finish/until` features utilize hardware breakpoints by default, which cannot be detected by user-mode processes. You can safely use these features without concerns. If these features are not functioning properly, consider enabling the `-disable-hw` option.
 
 ## 🧑‍💻 Todo
 
