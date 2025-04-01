@@ -149,7 +149,8 @@
 
    ```shell
    sudo apt-get update
-   sudo apt-get install golang==1.18 clang==14
+   sudo apt-get install golang-1.18
+   sudo apt-get install clang-14
    export GOPROXY=https://goproxy.cn,direct
    export GO111MODULE=on
 

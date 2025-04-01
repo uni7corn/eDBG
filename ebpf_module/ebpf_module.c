@@ -46,6 +46,7 @@ static __always_inline u32 do_probe(struct pt_regs* ctx, u32 point_key) {
     bpf_probe_read_kernel(&data->pstate, sizeof(data->pstate), &ctx->pstate);
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, data, sizeof(struct data_t));
     bpf_send_signal(19);
+    // bpf_send_signal_task(group_leader, 19, PIDTYPE_TGID, 8);
     return 0;
 }
 

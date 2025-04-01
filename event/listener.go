@@ -76,11 +76,13 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	bo := this.ByteOrder
 	this.pid = bo.Uint32(data[4:8])
 	nowTid := bo.Uint32(data[12+8*34:16+8*34])
+	// fmt.Printf("Suspened on %d %d\n", this.pid, nowTid)
 	PC := bo.Uint64(data[12+8*32:12+8*33])
 	if this.client.BrkManager.TempBreakTid != 0 {
 		if PC == this.client.BrkManager.TempAddressAbsolute || PC == 0xFFFFFFFF {
 			if nowTid == this.client.BrkManager.TempBreakTid {
 				this.process.WorkTid = nowTid
+				// this.process.Stop()
 				this.process.StoppedPID(this.pid)
 				if PC == 0xFFFFFFFF {
 					// 硬件断点
@@ -116,6 +118,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 					if nowTid == t.Thread.Tid {
 						this.process.WorkTid = nowTid
 						this.process.StoppedPID(this.pid)
+						// this.process.Stop()
 						this.Incomingdata <- data
 						this.client.DoClean <- true
 						return
@@ -137,6 +140,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 							if tInfo.Tid == nowTid {
 								this.process.WorkTid = nowTid
 								this.process.StoppedPID(this.pid)
+								// this.process.Stop()
 								this.Incomingdata <- data
 								this.client.DoClean <- true
 								return
@@ -153,6 +157,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 				// 没有可用的线程过滤器，按照 pid 工作
 				this.process.WorkTid = nowTid
 				this.process.StoppedPID(this.pid)
+				// this.process.Stop()
 				this.Incomingdata <- data
 				this.client.DoClean <- true
 				return
