@@ -111,6 +111,8 @@
 
 - **Write Memory** `write address hexstring` Target address must be writable
 
+- **Memory Dump** `dump address length filename`
+
 - **Exit** `quit/q`: Exit debugger (won't affect target process)
 
 - **Code Listing** `list/l/disassemble/dis`

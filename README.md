@@ -116,6 +116,8 @@
 
 - **写内存** `write 0x1235 62626262`：向指定地址写入 Hex String，地址指定方法与 `examine` 相同，目标地址必须可写
 
+- **Dump 内存** `dump address length filename`：将指定地址的内存写入文件
+
 - **退出** `quit / q`：退出**调试器**（不会影响程序运行）
 
 - **查看代码** `list / l / disassemble / dis`

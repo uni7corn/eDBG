@@ -160,6 +160,8 @@ loop:
 			break loop
 		case "examine", "x":
 			this.HandleMemory(args)
+		case "dump":
+			this.HandleDump(args)
 		case "quit", "q":
 			this.CleanUp()
 			return
@@ -649,6 +651,60 @@ func (this *Client) HandleWrite(args []string) {
 	}
 	fmt.Printf("%d bytes written.\n", n)
 	fmt.Println(utils.HexDump(address, data, n))
+}
+
+func (this *Client) HandleDump(args []string) {
+	if len(args) < 3 {
+		fmt.Println("Usage: dump <address> <length> <filename>")
+		return
+	}
+	address, err := strconv.ParseUint(args[0], 0, 64)
+	if err != nil {
+		if strings.HasPrefix(args[0], "X") {
+			regnum, err := strconv.ParseUint(args[0][1:], 0, 64)
+			if err != nil {
+				fmt.Printf("Bad Regnum: %v\n", err)
+				return
+			}
+			if regnum > 31 {
+				fmt.Printf("No such register\n")
+				return
+			}
+			address = this.Process.Context.GetReg(int(regnum)+32)
+
+		} else if args[0] == "SP" {
+			address = this.Process.Context.SP
+		} else {
+			fmt.Printf("Bad address: %v\n", err)
+			return
+		}
+	}
+	
+	length := 16
+	if len(args) > 1 {
+		len, err := strconv.Atoi(args[1])
+		if err != nil || len <= 0 {
+			fmt.Println("Bad length")
+			return
+		}
+		length = len
+	}
+
+	data := make([]byte, length)
+	n, err := utils.ReadProcessMemory(this.Process.WorkPid, uintptr(address), data)
+
+	if err != nil {
+		fmt.Printf("Reading Memory Error: %v\n", err)
+		return
+	}
+
+	// fmt.Println(utils.HexDump(address, data, n))
+	err = utils.WriteBytesToFile(args[2], data)
+	if err != nil {
+		fmt.Printf("Failed to write to file: %v\n", err)
+		return
+	}
+	fmt.Printf("Saved %d bytes to %s\n", n, args[2])
 }
 
 
