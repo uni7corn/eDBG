@@ -5,7 +5,7 @@ import (
     "errors"
     "os"
     "github.com/cilium/ebpf/perf"
-	manager "github.com/gojue/ebpfmanager"
+	"github.com/cilium/ebpf"
 )
 const (
 	_PERF_TYPE_BREAKPOINT     = 5
@@ -20,11 +20,10 @@ type PerfBreaks struct {
     Pid           uint32
     Addr          uint64
 	Type		  int
-	bpfManager    *manager.Manager
 	listener      IEventListener
 }
 
-func (this *PerfBreaks) RunPerfBreak() error {
+func (this *PerfBreaks) RunPerfBreak(em *ebpf.Map) error {
     pid := this.Pid 
     address := this.Addr
     eopt := perf.ExtraPerfOptions{
@@ -39,13 +38,7 @@ func (this *PerfBreaks) RunPerfBreak() error {
         Sample_stack_user: 0,
     }
     buf := os.Getpagesize() * (1 * 1024 / 4)
-    em, found, err := this.bpfManager.GetMap("brk_events")
-    if !found {
-        return fmt.Errorf("map not found")
-    }
-    if err != nil {
-        return fmt.Errorf("Get map failed: %v", err)
-    }
+    
     rd, err := perf.NewReaderWithOptions(em, buf, perf.ReaderOptions{}, eopt)
     if err != nil {
         return fmt.Errorf("Setup perf event failed: %v", err)
@@ -81,15 +74,21 @@ func (this *ProbeHandler) AddHWBreak(pid uint32, address uint64, tp int) error {
         Addr: address,
         Cleared: true,
         Type:   tp,
-		bpfManager: this.bpfManager,
         listener: this.listener,
     })
     return nil
 }
 
 func (this *ProbeHandler) SetHWBreakInternel() error {
+	em, found, err := this.bpfManager.GetMap("brk_events")
+    if !found {
+        return fmt.Errorf("map not found")
+    }
+	if err != nil {
+        return fmt.Errorf("Get map failed: %v", err)
+    }
     for _, p := range(this.Perfs) {
-		err := p.RunPerfBreak()
+		err := p.RunPerfBreak(em)
 		if err != nil {
 			fmt.Printf("Failed to start breakpoint at %x: %v\n", p.Addr, err)
 		}
