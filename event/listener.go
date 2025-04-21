@@ -2,6 +2,7 @@ package event
 
 import(
 	manager "github.com/gojue/ebpfmanager"
+	"github.com/cilium/ebpf/perf"
 	"encoding/binary"
 	"unsafe"
 	"eDBG/controller"
@@ -18,6 +19,7 @@ type EventListener struct {
 	process *controller.Process
 	ByteOrder binary.ByteOrder
 	Incomingdata chan []byte
+	Record  chan perf.Record
 }
 
 
@@ -26,8 +28,14 @@ func CreateEventListener(process *controller.Process) *EventListener {
 		process: process, 
 		ByteOrder: getHostByteOrder(), 
 		Incomingdata: make(chan []byte, 512),
+		Record: make(chan perf.Record, 1),
 	}
 }
+
+func (this *EventListener) SendRecord(rec perf.Record) {
+	this.Record <- rec
+}
+
 
 func (this *EventListener) SetupClient(client *cli.Client) {
 	this.client = client
@@ -86,7 +94,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 				this.process.StoppedPID(this.pid)
 				if PC == 0xFFFFFFFF {
 					// 硬件断点
-					dataRaw := <-this.client.BrkManager.ProbeHandler.Record
+					dataRaw := <-this.Record
 					this.Incomingdata <- dataRaw.RawSample[12:]
 				} else {
 					this.Incomingdata <- data
@@ -97,7 +105,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 			}
 			// 单步调试断点被其他线程命中
 			if PC == 0xFFFFFFFF {
-				<- this.client.BrkManager.ProbeHandler.Record // 舍弃这个 Sample
+				<- this.Record // 舍弃这个 Sample
 			}
 			// this.client.BrkManager.HasTempBreak = true // 之前脑子进水了引入了一个 bug
 			syscall.Kill(int(this.pid), syscall.SIGCONT)
