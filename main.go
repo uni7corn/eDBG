@@ -2,10 +2,8 @@ package main
 
 import (
     "eDBG/cli"
-	// "errors"
-    // "bufio"
+	"eDBG/config"
 	"flag"
-	// "log"
 	"os"
 	"strconv"
 	"syscall"
@@ -68,8 +66,9 @@ func main() {
         hiddis bool
         hidreg bool
 		save  bool
-		disableHW bool
+		prefer string
 		threadFilters string
+		disableColor bool
 		brkAddressInfos []*controller.Address
 	)
 	var brkFlag string
@@ -82,7 +81,8 @@ func main() {
 	flag.StringVar(&threadFilters, "t", "", "Thread name filters, e.g., [name1,name2]")
 	flag.StringVar(&inputfile, "i", "", "Input file saved from edbg. e.g. sample.edbg")
 	flag.BoolVar(&save, "s", false, "Save your progress to input file")
-	flag.BoolVar(&disableHW, "disable-hw", false, "Disable hardware breakpoints")
+	flag.BoolVar(&disableColor, "disable-color", false, "Disable color display")
+	flag.StringVar(&prefer, "prefer", "", "Preference. 'uprobe' for Uprobes and 'hardware' for Hardware breakpoints")
 	flag.StringVar(&outputfile, "o", "&&NotSetNotSetNotSetO=O", "Save your progress to specified file")
 	flag.Parse()
 
@@ -130,12 +130,32 @@ func main() {
 	if !utils.CheckConfig("CONFIG_DEBUG_INFO_BTF=y") {
 		btfFile = utils.FindBTFAssets()
 	}
+	switch prefer {
+	case "":
+		config.Preference = config.PREFER_PERF
+	case "uprobe":
+		config.Preference = config.ALL_UPROBE
+	case "hardware":
+		config.Preference = config.ALL_PERF
+	default:
+		fmt.Println("Unsupported preference. Usage: -prefer uprobe/hardware")
+		os.Exit(1)
+	}
+	if disableColor {
+		config.GREEN = ""
+		config.YELLOW = ""
+		config.RED = ""
+		config.BLUE = ""
+		config.CYAN = ""
+		config.NC = ""
+	}
 	if !utils.CheckConfig("CONFIG_HAVE_HW_BREAKPOINT=y") {
 		fmt.Println("Hardware breakpoints not enabled. Using uprobes.")
-		disableHW = true
+		config.Preference = config.ALL_UPROBE
+		config.Available_HW = 0
 	}
     eventListener := event.CreateEventListener(process)
-    brkManager := module.CreateBreakPointManager(eventListener, btfFile, process, !disableHW)
+    brkManager := module.CreateBreakPointManager(eventListener, btfFile, process)
     client := cli.CreateClient(process, library, brkManager, &cli.UserConfig{
         Registers: !hidreg,
         Disasm: !hiddis,
@@ -219,12 +239,12 @@ func main() {
 		}
 
 		for _, brk := range brkManager.BreakPoints {
-			if brk.Deleted {
+			if brk.Deleted || brk.Hardware {
 				continue
 			}
 			cfg.BreakPoints = append(cfg.BreakPoints, UserBreakPoints{
-				LibName: brk.LibInfo.LibName,
-				Offset:  brk.Offset,
+				LibName: brk.Addr.LibInfo.LibName,
+				Offset: brk.Addr.Offset,
 				Enable:  brk.Enable,
 			})
 		}
@@ -239,7 +259,7 @@ func main() {
 			}
 		}
 		SaveConfig(outputfile, cfg)
-		fmt.Println("Progress saved to file: %s", outputfile)
+		fmt.Println("Progress saved to file: ", outputfile)
 	}
 }
 

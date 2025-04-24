@@ -3,38 +3,38 @@ package module
 import (
 	"eDBG/controller"
 	"eDBG/utils"
+	"eDBG/config"
 	"fmt"
+	"github.com/cilium/ebpf/perf"
 	manager "github.com/gojue/ebpfmanager"
 )
 
 type IEventListener interface {
+	SendRecord(rec perf.Record)
     OnEvent(int, []byte, *manager.PerfMap, *manager.Manager)
 }
 
 type BreakPoint struct {
-	LibInfo *controller.LibraryInfo
-	Offset uint64
+	Addr *controller.Address
 	Enable bool
 	Deleted bool
+	Hardware bool
+	Pid uint32
+	Type int
 }
 
 type BreakPointManager struct {
 	process *controller.Process
-	EnableHW bool
 	BreakPoints []*BreakPoint
-	temporaryBreakPoint *BreakPoint
-	HasTempBreak bool
+	temporaryBreakPoint []*BreakPoint
 	ProbeHandler *ProbeHandler
 	TempBreakTid uint32
-	TempAddressAbsolute uint64
 }
 
-func CreateBreakPointManager(listener IEventListener, BTF_File string, process *controller.Process, EnableHW bool) *BreakPointManager {
+func CreateBreakPointManager(listener IEventListener, BTF_File string, process *controller.Process) *BreakPointManager {
 	return &BreakPointManager{
 		process: process,
 		ProbeHandler: CreateProbeHandler(listener, BTF_File), 
-		HasTempBreak: false,
-		EnableHW: EnableHW,
 	}
 }
 
@@ -43,38 +43,57 @@ func checkOffset(offset uint64) bool {
 }
 
 func (this *BreakPointManager) SetTempBreak(address *controller.Address, tid uint32) error {
-	offset := address.Offset
-	libInfo := address.LibInfo
-	if checkOffset(offset) == false {
-		return fmt.Errorf("Invalid address: %x", offset)
+	if checkOffset(address.Offset) == false {
+		return fmt.Errorf("Invalid address: %x", address.Offset)
 	}
 	for _, brk := range this.BreakPoints {
-		if brk.LibInfo.LibName == libInfo.LibName && offset == brk.Offset && brk.Enable == true {
+		if controller.Equals(brk.Addr, address) && brk.Enable == true {
 			return nil
 		}
 	}
 
 	brk := &BreakPoint{
-		LibInfo: libInfo,
-		Offset: offset,
+		Addr: address,
 		Enable: true,
 		Deleted: false,
+		Pid: this.process.WorkPid,
+		Type: config.HW_BREAKPOINT_X,
 	}
-	this.TempAddressAbsolute = address.Absolute
+
+	switch config.Preference {
+	case config.ALL_UPROBE:
+		brk.Hardware = false
+	case config.ALL_PERF:
+		brk.Hardware = true
+	case config.PREFER_UPROBE:
+		brk.Hardware = false
+	case config.PREFER_PERF:
+		safe, err := utils.SafeAddress(this.process.WorkPid, address.Absolute)
+		if err != nil {
+			fmt.Printf("Failed parse current addr: %v\n", address.Absolute, err)
+			brk.Hardware = false
+			break
+		}
+		if !safe {
+			brk.Hardware = true
+		} else {
+			brk.Hardware = false
+		}
+	}
+
 	this.TempBreakTid = tid
-	this.temporaryBreakPoint = brk
-	this.HasTempBreak = true
+	this.temporaryBreakPoint = append(this.temporaryBreakPoint, brk)
 	return nil
 }
 
 func (this *BreakPointManager) CreateBreakPoint(address *controller.Address, enable bool) error {
 	offset := address.Offset
-	libInfo := address.LibInfo
 	if checkOffset(offset) == false {
 		return fmt.Errorf("Invalid address: %x", offset)
 	}
 	for _, brk := range this.BreakPoints {
-		if brk.LibInfo.LibName == libInfo.LibName && offset == brk.Offset {
+		if !brk.Deleted && controller.Equals(address, brk.Addr) {
+			fmt.Println("What?")
 			if brk.Enable != enable {
 				brk.Enable = enable
 			} else {
@@ -84,68 +103,60 @@ func (this *BreakPointManager) CreateBreakPoint(address *controller.Address, ena
 		}
 	}
 	brk := &BreakPoint{
-		LibInfo: libInfo,
-		Offset: offset,
+		Addr: address,
+		Hardware: false,
 		Enable: enable,
 		Deleted: false,
+		Pid: this.process.WorkPid,
 	}
 	this.BreakPoints = append(this.BreakPoints, brk)
 	return nil
 }
-func (this *BreakPointManager) UseUprobe() error {
-	// fmt.Println("Using uprobes to set temporary breakpoint.")
-	return this.ProbeHandler.SetupManager(append(this.BreakPoints, this.temporaryBreakPoint), false)
-}
-func (this *BreakPointManager) SetupProbe() error {
-	// err := probeHandler.Init()
-	// if err != nil {
-	// 	return err
-	// }
-	if this.HasTempBreak == true {
-		if this.EnableHW {
-			// fmt.Println("Using perf event")
-			err := this.ProbeHandler.SetupManager(this.BreakPoints, true)
-			if err != nil {
-				return err
-			}
-			safe, err := utils.SafeAddress(this.process.WorkPid, this.TempAddressAbsolute)
-			// 如果断点是跳转指令，则我们需要 pstate 寄存器来预测下一条指令位置，因此必须使用 uprobe。
-			// 巧合的是，此时使用 uprobe 是安全的
-			if err != nil {
-				fmt.Printf("Failed parse current addr: %v\n", this.TempAddressAbsolute, err)
-			}
-			if !safe {
-				err = this.ProbeHandler.SetHWBreak(this.process.WorkPid, this.TempAddressAbsolute)
-				if err != nil {
-					fmt.Printf("Failed to open perf event at %x: %v\n", this.TempAddressAbsolute, err)
-					err = this.UseUprobe()
-					if err != nil {
-						return err
-					}
-				}
+
+func (this *BreakPointManager) CreateHWBreakPoint(address *controller.Address, enable bool, Type int) error {
+	Count := 0
+	for _, brk := range this.BreakPoints {
+		if !brk.Deleted && controller.Equals(address, brk.Addr) {
+			if brk.Enable != enable {
+				brk.Enable = enable
 			} else {
-				err := this.UseUprobe()
-				if err != nil {
-					return err
-				}
+				// return fmt.Errorf("BreakPoint %x exsists")
 			}
-		} else {
-			err := this.UseUprobe()
-			if err != nil {
-				return err
-			}
+			return nil
 		}
-		this.HasTempBreak = false
-	} else {
-		this.TempBreakTid = 0
-		err := this.ProbeHandler.SetupManager(this.BreakPoints, false)
-		if err != nil {
-			return err
+		if !brk.Deleted && brk.Hardware == true {
+			Count++
 		}
 	}
-	
-	
-	err := this.ProbeHandler.Run()
+	if Count >= config.Available_HW - 2 {
+		return fmt.Errorf("Hardware Breakpoint count limit exceed. Delete some hardware breakpoints or use uprobe.")
+	}
+	brk := &BreakPoint{
+		Addr: address,
+		Hardware: true,
+		Enable: enable,
+		Deleted: false,
+		Pid: this.process.WorkPid,
+		Type: Type,
+	}
+	this.BreakPoints = append(this.BreakPoints, brk)
+	return nil
+}
+
+func (this *BreakPointManager) ClearTempBreak() {
+	this.temporaryBreakPoint = []*BreakPoint{}
+}
+
+func (this *BreakPointManager) SetupProbe() error {
+	if len(this.temporaryBreakPoint) == 0 {
+		this.TempBreakTid = 0
+	}
+	err := this.ProbeHandler.SetupManager(append(this.temporaryBreakPoint, this.BreakPoints...))
+	if err != nil {
+		return err
+	}
+	this.ClearTempBreak()
+	err = this.ProbeHandler.Run()
 	// fmt.Println("probe is running..")
 	if err != nil {
 		return err
@@ -182,7 +193,11 @@ func (this *BreakPointManager) PrintBreakPoints() {
 		} else {
 			fmt.Printf("[+] ")
 		}
-		fmt.Printf("%d: %s+%x\n", id, brk.LibInfo.LibName, brk.Offset)
+		if brk.Hardware {
+			fmt.Printf("%d: %x Hardware\n", id, brk.Addr.Absolute)
+		} else {
+			fmt.Printf("%d: %s+%x\n", id, brk.Addr.LibInfo.LibName, brk.Addr.Offset)
+		}
 	}
 }
 

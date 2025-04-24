@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"eDBG/config"
 )
 
 // var DoneSymbol []*CachedLibInfo
@@ -156,12 +157,12 @@ func findSymbolOffset(f *elf.File, sym elf.Symbol) (uint64, error) {
 
 func (this *Process) GetSymbol(address uint64) string {
 	if sym, ok := this.Symbols[address]; ok {
-		return fmt.Sprintf("<%s>", sym)
+		return fmt.Sprintf("%s<%s>%s", config.GREEN, sym, config.NC)
 	}
 	addressInfo, err := this.ParseAddress(address)
 	if err == nil {
 		if addressInfo.LibInfo.SymbolExtracted == true {
-			return fmt.Sprintf("<%s+%x>", addressInfo.LibInfo.LibName, addressInfo.Offset)
+			return fmt.Sprintf("%s<%s+%x>%s", config.GREEN, addressInfo.LibInfo.LibName, addressInfo.Offset, config.NC)
 		}
 		err := this.ExportSymbols(address-addressInfo.Offset, addressInfo.LibInfo.RealFilePath, addressInfo.LibInfo.NonElfOffset)
 		if err != nil {
@@ -169,9 +170,9 @@ func (this *Process) GetSymbol(address uint64) string {
 		}
 		addressInfo.LibInfo.SymbolExtracted = true
 		if sym, ok := this.Symbols[address]; ok {
-			return fmt.Sprintf("<%s>", sym)
+			return fmt.Sprintf("%s<%s>%s", config.GREEN, sym, config.NC)
 		}
-		return fmt.Sprintf("<%s+%x>", addressInfo.LibInfo.LibName, addressInfo.Offset)
+		return fmt.Sprintf("%s<%s+%x>%s", config.GREEN, addressInfo.LibInfo.LibName, addressInfo.Offset, config.NC)
 	}
 	return ""
 }
