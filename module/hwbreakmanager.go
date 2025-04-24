@@ -7,12 +7,6 @@ import (
     "github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf"
 )
-const (
-	_PERF_TYPE_BREAKPOINT     = 5
-	_PERF_COUNT_HW_BREAKPOINT = 6
-	_HW_BREAKPOINT_X          = 4
-	_HW_BREAKPOINT_LEN_4      = 0x40
-)
 
 type PerfBreaks struct {
 	Fd            *perf.Reader

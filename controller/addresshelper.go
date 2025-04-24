@@ -35,6 +35,16 @@ func NewAddress(libInfo *LibraryInfo, offset uint64) *Address {
 	}
 }
 
+func Equals(a *Address, b *Address) bool {
+    if a.LibInfo.LibName == b.LibInfo.LibName && a.Offset == b.Offset {
+        return true
+    }
+    if a.Absolute == b.Absolute && a.Absolute != 0 {
+        return true
+    }
+    return false
+}
+
 func (this *Process) ParseAddress(address uint64) (*Address, error) {
 	for _, lib := range DoneLib {
 		if lib.BaseAddr <= address && address < lib.EndAddr {
@@ -53,11 +63,11 @@ func (this *Process) ParseAddress(address uint64) (*Address, error) {
 func (this *Process) ParseAddressNew(address uint64) (*Address, error) {
     maps, err := this.GetCurrentMaps()
     if err != nil {
-        return &Address{}, err
+        return &Address{Absolute: address}, err
     }
 	addressParsed, err := maps.ParseAbsoluteAddress(this, address)
 	if err != nil {
-		return &Address{}, err
+		return &Address{Absolute: address}, err
 	}
 	addressParsed.Absolute = address
 	return addressParsed, nil
@@ -185,6 +195,9 @@ func (this *ProcMaps) GetAbsoluteAddressNew(address *Address) (uint64, error) {
 
 
 func (this *Process) GetAbsoluteAddress(address *Address) (uint64, error) {
+    if address.Absolute != 0 {
+        return address.Absolute, nil
+    }
     libInfo := address.LibInfo
     for _, lib := range DoneLib {
         if lib.LibInfo.LibName == libInfo.LibName && lib.BaseAddr+address.Offset < lib.EndAddr {
@@ -195,5 +208,9 @@ func (this *Process) GetAbsoluteAddress(address *Address) (uint64, error) {
     if err != nil {
         return 0, fmt.Errorf("Cannot get current maps")
     }
-    return maps.GetAbsoluteAddressNew(address)
+    address.Absolute, err = maps.GetAbsoluteAddressNew(address)
+    if err != nil {
+        address.Absolute = 0
+    }
+    return address.Absolute, err
 }

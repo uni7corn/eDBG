@@ -48,19 +48,12 @@
    ./eDBG -p com.package.name -l libname.so -b 0x123456
    ```
 
-   |      Option       |                         Description                          |
-   | :---------------: | :----------------------------------------------------------: |
-   |        -p         |                   Target app package name                    |
-   |        -l         |                  Target shared library name                  |
-   |        -b         |            Initial breakpoints (comma-separated)             |
-   |        -t         |        Thread name filter for eBPF (comma-separated)         |
-   |        -i         |               Load config from specified file                |
-   |        -s         |                  Save config to input file                   |
-   |        -o         |                Save config to specified file                 |
-   |  -hide-register   |             Disable register info on breakpoints             |
-   | -hide-disassemble |             Disable assembly info on breakpoints             |
-   |    -disable-hw    | Disable Hardware breakpoints(Refer to the 'Implementation' section) |
-
+   | Option |              Description              |
+   | :----: | :-----------------------------------: |
+   |   -p   |        Target app package name        |
+   |   -l   |      Target shared library name       |
+   |   -b   | Initial breakpoints (comma-separated) |
+   
 4. Launch target app:
 
    > eDBG can attach to running processes but won't auto-launch apps.
@@ -80,69 +73,28 @@
   - Memory: `b 0x6e9bfe214c` (requires running process)
   - Library+Offset: `b library.so+0x1234`
   - Relative: `b $+1` (current position +1 instruction)
-
 - **Continue** `continue/c`: Resume execution
-
 - **Stepping**
 
   - `step/s`: Step into functions
   - `next/n`: Step over functions
-
-- **Function Finish** `finish/fi`: Execute until function return
-
-- **Run Until** `until/u <address>`: Execute to specified address
-
 - **Memory Examination** `examine/x`
 
   - Address: `x 0x12345678` (default 16 bytes)
   - Address+Length: `x 0x12345678 128`
   - Register: `x X0` (access [X0] memory)
   - Register+Length: `x X0 128`
-
-- **Memory Display** `display/disp`
-
-  - Address: `disp 0x123456` (auto-print on breaks/steps)
-  - Address+Length: `disp 0x123456 128`
-  - Named: `disp 0x123456 128 name`
-
-  > ⚠️ Memory address changes (e.g., app restart) may invalidate displays
-
-- **Undisplay** `undisplay/undisp <id>`: Remove auto-display
-
-- **Write Memory** `write address hexstring` Target address must be writable
-
-- **Memory Dump** `dump address length filename`
-
 - **Exit** `quit/q`: Exit debugger (won't affect target process)
-
-- **Code Listing** `list/l/disassemble/dis`
-
-  - Current: `l` (10 instructions from PC)
-  - Specific: `l 0x1234` (10 instructions)
-  - Custom: `l 0x1234 20` (20 instructions)
-
 - **Information** `info/i`
 
   - `info b/break`: List breakpoints (`[+]`=enabled, `[-]`=disabled)
   - `info register/reg/r`: Show registers
   - `info thread/t`: List threads & filters
-
 - **Breakpoint Management**
 
   - `enable <id>`: Enable breakpoint
   - `disable <id>`: Disable breakpoint
   - `delete <id>`: Remove breakpoint
-
-- **Thread Control** `thread/t`
-
-  - `t`: List threads
-  - `t + 0`: Add thread filter (use `info t` for IDs)
-  - `t - 0`: Remove filter
-  - `t all`: Clear all filters
-  - `t +n threadname`: Filter by thread name
-
-- **Set Symbol** `set address name`：Name specified address
-
 - **Repeat Command**: Press Enter with empty input
 
 ## 🛫 Compilation
@@ -164,16 +116,67 @@
    make
    ```
 
+## 🧑‍💻 Advanced Usage
+
+More options:
+
+|      Option       |                  Description                  |
+| :---------------: | :-------------------------------------------: |
+|        -t         | Thread name filter for eBPF (comma-separated) |
+|        -i         |        Load config from specified file        |
+|        -s         |           Save config to input file           |
+|        -o         |         Save config to specified file         |
+|  -hide-register   |     Disable register info on breakpoints      |
+| -hide-disassemble |     Disable assembly info on breakpoints      |
+|      -prefer      |              uprobe or hardware               |
+|  -disable-color   |            disable colorful output            |
+
+More commands:
+
+- **Hardware breakpoints** `hbreak`: Usage is similar to `break`, but limited to a maximum of 4.
+
+- **Write watch** `watch`: Usage is similar to `break`, triggers when a specified address is written to (hardware breakpoint).
+
+- **Read watch** `rwatch`: Same as above, triggers when a specified address is read (also a hardware breakpoint).
+
+- **Function Finish** `finish/fi`: Execute until function return
+
+- **Run Until** `until/u <address>`: Execute to specified address
+
+- **Memory Display** `display/disp`
+
+  - Address: `disp 0x123456` (auto-print on breaks/steps)
+  - Address+Length: `disp 0x123456 128`
+  - Named: `disp 0x123456 128 name`
+
+  > ⚠️ Memory address changes (e.g., app restart) may invalidate displays
+
+- **Undisplay** `undisplay/undisp <id>`: Remove auto-display
+
+- **Write Memory** `write address hexstring` Target address must be writable
+
+- **Memory Dump** `dump address length filename`
+
+- **Code Listing** `list/l/disassemble/dis`
+
+  - Current: `l` (10 instructions from PC)
+  - Specific: `l 0x1234` (10 instructions)
+  - Custom: `l 0x1234 20` (20 instructions)
+
+- **Thread Control** `thread/t`
+
+  - `t`: List threads
+  - `t + 0`: Add thread filter (use `info t` for IDs)
+  - `t - 0`: Remove filter
+  - `t all`: Clear all filters
+  - `t +n threadname`: Filter by thread name
+
+- **Set Symbol** `set address name`：Name specified address
+
 ## 💭 Implementation
 
 - All breakpoints are implemented using uprobes. It is recommended to place breakpoints on jump instructions (B-series instructions/RET/CBZ/TBNZ) to avoid introducing identifiable signatures in `/proc/maps`.
 2. The `step/next/finish/until` features utilize hardware breakpoints by default, which cannot be detected by user-mode processes. You can safely use these features without concerns. If these features are not functioning properly, consider enabling the `-disable-hw` option.
-
-## 🧑‍💻 Todo
-
-- Frame support
-- Backtrace functionality
-- Watchpoints
 
 ## 🤝 References
 

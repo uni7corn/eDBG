@@ -3,6 +3,7 @@ package cli
 import (
 	"eDBG/utils"
 	"eDBG/controller"
+	"eDBG/config"
 	"eDBG/module"
 	"os"
 	"fmt"
@@ -77,11 +78,15 @@ func (this *Client) Run() {
 func (this *Client) OutputInfo() {
 	// fmt.Println("?")
 	if this.Config.Registers {
+		fmt.Print(config.BLUE)
 		fmt.Println("──────────────────────────────────────[ REGISTERS ]──────────────────────────────────────")
+		fmt.Print(config.NC)
 		this.Process.PrintContext()
 	}
 	if this.Config.Disasm {
+		fmt.Print(config.BLUE)
 		fmt.Println("──────────────────────────────────────[  DISASM  ]────────────────────────────────────────")
+		fmt.Print(config.NC)
 		this.PrintDisassembleInfo(this.Process.Context.PC, 10)
 	}
 	cntDisplay := 0
@@ -92,11 +97,15 @@ func (this *Client) OutputInfo() {
 		}
 	}
 	if cntDisplay > 0 {
+		fmt.Print(config.BLUE)
 		fmt.Println("──────────────────────────────────────[ DISPLAY ]────────────────────────────────────────")
+		fmt.Print(config.NC)
 		this.PrintDisplay()
 	}
 	if this.Config.Registers || this.Config.Disasm || cntDisplay > 0 {
+		fmt.Print(config.BLUE)
 		fmt.Println("─────────────────────────────────────────────────────────────────────────────────────────")
+		fmt.Print(config.NC)
 	}
 }
 
@@ -152,6 +161,12 @@ loop:
 		switch cmd {
 		case "break", "b":
 			this.HandleBreak(args)
+		case "hbreak", "hb":
+			this.HandleHBreak(args, config.HW_BREAKPOINT_X)
+		case "rwatch":
+			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
+		case "watch":
+			this.HandleHBreak(args, config.HW_BREAKPOINT_R)
 		case "step", "s":
 			this.HandleStep()
 			break loop
@@ -196,8 +211,6 @@ loop:
 		case "until", "u":
 			this.HandleUntil(args)
 			return
-		case "watch":
-			fmt.Println("Command watch is coming soon...")
 		case "run", "r":
 			fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
 		case "set":
@@ -550,6 +563,30 @@ func (this *Client) HandleUntil(args []string) {
 	}
 }
 
+func (this *Client) HandleHBreak(args []string, Type int) {
+	if len(args) == 0 {
+		fmt.Println("Usage: hbreak <address>")
+		return
+	}
+	address, err := this.ParseUserAddress(args[0])
+	if err != nil {
+		fmt.Printf("Failed to parse address: %v\n", err)
+		return
+	}
+	if address.Absolute == 0 {
+		absolute, err := this.Process.GetAbsoluteAddress(address)
+		if err != nil {
+			fmt.Printf("Failed to get absolute address.")
+			return
+		}
+		address.Absolute = absolute
+	}
+	if err = this.BrkManager.CreateHWBreakPoint(address, true, Type); err != nil {
+		fmt.Printf("Failed to set breakpoint: %v\n", err)
+	} else {
+		fmt.Printf("Breakpoint at %x\n", address.Absolute)
+	}
+}
 
 func (this *Client) HandleBreak(args []string) {
 	if len(args) == 0 {
@@ -581,6 +618,27 @@ func (this *Client) HandleContinue() {
 
 func (this *Client) HandleStep() {
 	NextPC, err := utils.PredictNextPC(this.Process.WorkPid, this.Process.Context, true)
+	if NextPC == 0xDEADBEEF {
+		target, err := utils.GetTarget(this.Process.WorkPid, this.Process.Context)
+		if err != nil {
+			fmt.Printf("Failed to get branch target: %v\n", err)
+			return
+		}
+		address, err := this.Process.ParseAddress(uint64(this.Process.Context.GetPC()+4))
+		if err != nil {
+			fmt.Printf("Failed to parse nextPC: %v\n", err)
+			return
+		}
+		this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
+		address2, err := this.Process.ParseAddress(uint64(target))
+		if err != nil {
+			fmt.Printf("Failed to parse nextPC: %v\n", err)
+			return
+		}
+		this.BrkManager.SetTempBreak(address2, this.Process.WorkTid)
+		this.HandleContinue()
+		return
+	}
 	if err != nil {
 		fmt.Printf("Failed to predict next addr: %v\n", err)
 		return
@@ -596,6 +654,27 @@ func (this *Client) HandleStep() {
 
 func (this *Client) HandleNext() {
 	NextPC, err := utils.PredictNextPC(this.Process.WorkPid, this.Process.Context, false)
+	if NextPC == 0xDEADBEEF {
+		target, err := utils.GetTarget(this.Process.WorkPid, this.Process.Context)
+		if err != nil {
+			fmt.Printf("Failed to get branch target: %v\n", err)
+			return
+		}
+		address, err := this.Process.ParseAddress(uint64(this.Process.Context.GetPC()+4))
+		if err != nil {
+			fmt.Printf("Failed to parse nextPC: %v\n", err)
+			return
+		}
+		this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
+		address2, err := this.Process.ParseAddress(uint64(target))
+		if err != nil {
+			fmt.Printf("Failed to parse nextPC: %v\n", err)
+			return
+		}
+		this.BrkManager.SetTempBreak(address2, this.Process.WorkTid)
+		this.HandleContinue()
+		return
+	}
 	if err != nil {
 		fmt.Printf("Failed to predict next addr: %v\n", err)
 		return
@@ -766,14 +845,16 @@ func (this *Client) PrintDisassembleInfo(address uint64, len int) {
 	} else {
 		addInfo, err := this.Process.ParseAddress(address)
 		if err == nil {
-			fmt.Printf(">>  0x%x<%s+%x>\t", address, addInfo.LibInfo.LibName, addInfo.Offset)
+			fmt.Printf("%s>>  0x%x<%s+%x>%s\t", config.GREEN, address, addInfo.LibInfo.LibName, addInfo.Offset, config.GREEN)
 		} else {
-			fmt.Printf(">>  0x%x%v\t", address, err)
+			fmt.Printf("%s>>  0x%x\t%s", config.GREEN, address, config.GREEN)
 		}
 
 		code, err := utils.DisASM(codeBuf[0:4], address, this.Process)
 		if err == nil {
-			fmt.Printf("%s\n", code)
+			index := strings.Index(code, " ")
+			fmt.Printf("%s%s%s ", config.YELLOW, code[:index], config.NC)
+			fmt.Printf("%s%s%s\n", config.CYAN, code[index+1:], config.NC)
 		} else {
 			fmt.Println("(disassemble failed)")
 		}
@@ -787,7 +868,9 @@ func (this *Client) PrintDisassembleInfo(address uint64, len int) {
 
 			code, err = utils.DisASM(codeBuf[i:i+4], address+uint64(i), this.Process)
 			if err == nil {
-				fmt.Printf("%s\n", code)
+				index := strings.Index(code, " ")
+				fmt.Printf("%s%s%s ", config.YELLOW, code[:index], config.NC)
+				fmt.Printf("%s%s%s\n", config.CYAN, code[index+1:], config.NC)
 			} else {
 				fmt.Println("(disassemble failed)\n")
 			}

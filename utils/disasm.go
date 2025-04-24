@@ -27,8 +27,14 @@ func DisASM(code []byte, PC uint64, process IProcess) (string, error) {
     }
     switch inst.Op {
     case arm64asm.B, arm64asm.BL:
+        cond := getCondition(inst)
+        if cond == "AL" {
+            cond = ""
+        } else {
+            cond = "."+cond   
+        }
 		if target := getBranchTarget(inst, PC); target != 0 {
-            return fmt.Sprintf("%s %x%s", inst.Op.String(), target, process.GetSymbol(target)), nil
+            return fmt.Sprintf("%s%s %x%s", inst.Op.String(), cond, target, process.GetSymbol(target)), nil
         }
 	case arm64asm.CBZ, arm64asm.CBNZ:
 		if _, target := getCBZTarget(inst, PC); target != 0 {
@@ -71,7 +77,22 @@ func SafeAddress(pid uint32, PC uint64) (bool, error) {
     }
     return false, nil
 }
+func GetTarget(pid uint32, ctx IContext) (uintptr, error) {
+    PC := ctx.GetPC()
+    asm := make([]byte, 4)
+	n, err := ReadProcessMemory(pid, uintptr(PC), asm)
+	if n < 4 || err != nil {
+		return uintptr(PC + 4), fmt.Errorf("GetTarget: Failed to read instruction: %v", err)
+	}
 
+    // 1. 解码ARM64指令
+    inst, err := arm64asm.Decode(asm)
+    if err != nil {
+        return uintptr(PC + 4), fmt.Errorf("GetTarget: Failed to disassemble instruction: %v", err)
+    }
+
+    return uintptr(getBranchTarget(inst, PC)), nil
+}
 func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 	PC := ctx.GetPC()
 	pstate := ctx.GetPstate()
@@ -100,6 +121,9 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 		}
     case arm64asm.B:
 		cond := getCondition(inst)
+        if cond != "AL" && pstate == 0xFFFFFFFF {
+            return 0xDEADBEEF, fmt.Errorf("PredictNextPC: Missing pstate")
+        }
 		// fmt.Printf("Condition: '%s'\n", cond)
 		if conditionMet(cond, pstate) {
 			if target := getBranchTarget(inst, PC); target != 0 {

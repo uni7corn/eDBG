@@ -79,24 +79,24 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
             continue
         }
         if brk.Hardware {
-            this.AddHWBreak(brk.Pid, brk.Offset, brk.Type)
+            this.AddHWBreak(brk.Pid, brk.Addr.Absolute, brk.Type)
             perf = true
             continue
         }
         var probe *manager.Probe
         usedCount++
         if usedCount > 20 {
-            return fmt.Errorf("setupManager: Failed to Set Breakpoint: %x. Breakpoint count exceed 20.", brk.Offset)
+            return fmt.Errorf("setupManager: Failed to Set Breakpoint: %x. Breakpoint count exceed 20.", brk.Addr.Absolute)
         }
         sym := utils.RandStringBytes(8)
         probe = &manager.Probe{
             Section:          fmt.Sprintf("uprobe/probe_%d", i),
             EbpfFuncName:     fmt.Sprintf("probe_%d", i),
             AttachToFuncName: sym,
-            RealFilePath:     brk.LibInfo.RealFilePath,
-            BinaryPath:       brk.LibInfo.LibPath,
-            NonElfOffset:     brk.LibInfo.NonElfOffset,
-            UAddress: brk.Offset,
+            RealFilePath:     brk.Addr.LibInfo.RealFilePath,
+            BinaryPath:       brk.Addr.LibInfo.LibPath,
+            NonElfOffset:     brk.Addr.LibInfo.NonElfOffset,
+            UAddress: brk.Addr.Offset,
         }
         probes = append(probes, probe)
     }

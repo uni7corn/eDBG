@@ -65,6 +65,8 @@ func (this *EventListener) Workdata(data []byte) {
 	if len(data) >= 284 {
 		// 硬件断点无法采样 pstate
 		context.Pstate = bo.Uint64(data[12+8*33:12+8*34])
+	} else {
+		context.Pstate = 0xFFFFFFFF
 	}
 	this.process.Context = context
 	this.client.Incoming <- true
@@ -79,6 +81,7 @@ func (this *EventListener) Run() {
 	}()
 }
 
+
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
 	this.process.UpdatePidList()
 	bo := this.ByteOrder
@@ -87,13 +90,13 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	// fmt.Printf("Suspened on %d %d\n", this.pid, nowTid)
 	PC := bo.Uint64(data[12+8*32:12+8*33])
 	if this.client.BrkManager.TempBreakTid != 0 {
-		if PC == this.client.BrkManager.TempAddressAbsolute || PC == 0xFFFFFFFF {
+		if PC == 0xFFFFFFFF { 
+			// uprobe 的先不管，有 issue 再说
 			if nowTid == this.client.BrkManager.TempBreakTid {
 				this.process.WorkTid = nowTid
 				// this.process.Stop()
 				this.process.StoppedPID(this.pid)
 				if PC == 0xFFFFFFFF {
-					// 硬件断点
 					dataRaw := <-this.Record
 					this.Incomingdata <- dataRaw.RawSample[12:]
 				} else {
@@ -107,7 +110,6 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 			if PC == 0xFFFFFFFF {
 				<- this.Record // 舍弃这个 Sample
 			}
-			// this.client.BrkManager.HasTempBreak = true // 之前脑子进水了引入了一个 bug
 			syscall.Kill(int(this.pid), syscall.SIGCONT)
 			return
 		}
@@ -126,8 +128,12 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 					if nowTid == t.Thread.Tid {
 						this.process.WorkTid = nowTid
 						this.process.StoppedPID(this.pid)
-						// this.process.Stop()
-						this.Incomingdata <- data
+						if PC == 0xFFFFFFFF {
+							dataRaw := <-this.Record
+							this.Incomingdata <- dataRaw.RawSample[12:]
+						} else {
+							this.Incomingdata <- data
+						}
 						this.client.DoClean <- true
 						return
 					}
@@ -148,8 +154,12 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 							if tInfo.Tid == nowTid {
 								this.process.WorkTid = nowTid
 								this.process.StoppedPID(this.pid)
-								// this.process.Stop()
-								this.Incomingdata <- data
+								if PC == 0xFFFFFFFF {
+									dataRaw := <-this.Record
+									this.Incomingdata <- dataRaw.RawSample[12:]
+								} else {
+									this.Incomingdata <- data
+								}
 								this.client.DoClean <- true
 								return
 							}
@@ -165,16 +175,21 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 				// 没有可用的线程过滤器，按照 pid 工作
 				this.process.WorkTid = nowTid
 				this.process.StoppedPID(this.pid)
-				// this.process.Stop()
-				this.Incomingdata <- data
+				if PC == 0xFFFFFFFF {
+					dataRaw := <-this.Record
+					this.Incomingdata <- dataRaw.RawSample[12:]
+				} else {
+					this.Incomingdata <- data
+				}
 				this.client.DoClean <- true
 				return
 			}
 			
 		}
 	}
-	
+	if PC == 0xFFFFFFFF {
+		<- this.Record // 舍弃这个 Sample
+	}
 	syscall.Kill(int(this.pid), syscall.SIGCONT)
-	// fmt.Println("Send DoClean")
 }
 
