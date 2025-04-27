@@ -164,9 +164,9 @@ loop:
 		case "hbreak", "hb":
 			this.HandleHBreak(args, config.HW_BREAKPOINT_X)
 		case "rwatch":
-			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
-		case "watch":
 			this.HandleHBreak(args, config.HW_BREAKPOINT_R)
+		case "watch":
+			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
 		case "step", "s":
 			this.HandleStep()
 			break loop
