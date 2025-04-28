@@ -32,7 +32,6 @@ func (this *PerfBreaks) RunPerfBreak(em *ebpf.Map) error {
         Sample_stack_user: 0,
     }
     buf := os.Getpagesize() * (1 * 1024 / 4)
-    
     rd, err := perf.NewReaderWithOptions(em, buf, perf.ReaderOptions{}, eopt)
     if err != nil {
         return fmt.Errorf("Setup perf event failed: %v", err)
@@ -44,11 +43,11 @@ func (this *PerfBreaks) RunPerfBreak(em *ebpf.Map) error {
             record, err := rd.ReadWithExtraOptions(&eopt)
             if err != nil {
                 if errors.Is(err, perf.ErrClosed) {
+                    // fmt.Println("Error: Closed!")
                     return
                 }
                 fmt.Println("Got record Failed: ", err)
             }
-            // fmt.Println("Got record: ", record.RawSample)
             this.listener.SendRecord(record)
         }
     }()

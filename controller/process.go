@@ -160,6 +160,7 @@ func (this *Process) Continue() error {
         }
     }
 	this.StoppedPid = []uint32{}
+	this.WorkPid = 0
 	return nil
 }
 

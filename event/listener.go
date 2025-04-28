@@ -19,6 +19,7 @@ type EventListener struct {
 	process *controller.Process
 	ByteOrder binary.ByteOrder
 	Incomingdata chan []byte
+	EventData chan []byte
 	Record  chan perf.Record
 }
 
@@ -28,6 +29,7 @@ func CreateEventListener(process *controller.Process) *EventListener {
 		process: process, 
 		ByteOrder: getHostByteOrder(), 
 		Incomingdata: make(chan []byte, 512),
+		EventData: make(chan []byte, 512),
 		Record: make(chan perf.Record, 1),
 	}
 }
@@ -79,22 +81,48 @@ func (this *EventListener) Run() {
 			this.Workdata(data)
 		}
 	}()
+	go func() {
+		for {
+			data := <- this.EventData
+			this.WorkEvent(data)
+		}
+	}()
 }
 
-
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
+	this.EventData <- data
+}
+func (this *EventListener) WorkEvent(data []byte) {
+	for {
+		if !this.client.Working {
+			break
+		}
+	}
+	this.client.Working = true
 	this.process.UpdatePidList()
 	bo := this.ByteOrder
 	this.pid = bo.Uint32(data[4:8])
 	nowTid := bo.Uint32(data[12+8*34:16+8*34])
-	// fmt.Printf("Suspened on %d %d\n", this.pid, nowTid)
 	PC := bo.Uint64(data[12+8*32:12+8*33])
+	// if PreviousStatus {
+	// 	fmt.Printf("The debugger is working. Ignored breakpoint from PID: %d, TID: %d, ", this.pid, nowTid)
+	// 	if PC == 0xFFFFFFFF {
+	// 		<- this.Record 
+	// 		fmt.Println("Hardware Breakpoint")
+	// 	} else {
+	// 		fmt.Printf("PC: %x\n", PC)
+	// 	}
+	// 	if this.pid != this.process.WorkPid {
+	// 		syscall.Kill(int(this.pid), syscall.SIGCONT)
+	// 	}
+	// 	return
+	// }
 	if this.client.BrkManager.TempBreakTid != 0 {
 		if PC == 0xFFFFFFFF { 
 			// uprobe 的先不管，有 issue 再说
 			if nowTid == this.client.BrkManager.TempBreakTid {
+				this.process.WorkPid = this.pid
 				this.process.WorkTid = nowTid
-				// this.process.Stop()
 				this.process.StoppedPID(this.pid)
 				if PC == 0xFFFFFFFF {
 					dataRaw := <-this.Record
@@ -110,6 +138,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 			if PC == 0xFFFFFFFF {
 				<- this.Record // 舍弃这个 Sample
 			}
+			this.client.Working = false
 			syscall.Kill(int(this.pid), syscall.SIGCONT)
 			return
 		}
@@ -190,6 +219,7 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 	if PC == 0xFFFFFFFF {
 		<- this.Record // 舍弃这个 Sample
 	}
+	this.client.Working = false
 	syscall.Kill(int(this.pid), syscall.SIGCONT)
 }
 

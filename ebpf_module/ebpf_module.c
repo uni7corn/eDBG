@@ -89,7 +89,7 @@ struct {
 // struct bpf_perf_event_data * bpf_ctx
 // SEC("perf_event")
 
-SEC("kprobe/perf_output_sample")
+SEC("kprobe/bpf_perf_event_output")
 int probe_perf(struct pt_regs *ctx ) {
     __u32 zero = 0;
     struct data_t *data = bpf_map_lookup_elem(&event_map, &zero);

@@ -41,7 +41,7 @@ type Client struct {
 	Done chan bool
 	DoClean chan bool
 	PreviousCMD string
-	// PreviousTid uint32
+	Working bool
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager, config *UserConfig) *Client {
@@ -62,7 +62,6 @@ func (this *Client) Run() {
 		for {
 			<- this.DoClean
 			this.StopProbes()
-			this.Done <- true
 		}
 	}()
 	go func() {
@@ -127,13 +126,13 @@ func (this *Client) PrintDisplay() {
 }
 
 func (this *Client) StopProbes() {
-	// fmt.Println("Doing Cleaning")
 	err := this.BrkManager.Stop()
 	if err != nil {
-		fmt.Println("Failed to terminate.", err)
+		fmt.Println("WARN: Failed to terminate. A Breakpoint maybe triggered due to a race condition.", err)
 		this.CleanUp()
+	} else {	
+		this.Done <- true
 	}
-	// fmt.Println("Done Clean")
 }
 
 func (this *Client) REPL() {
@@ -144,8 +143,6 @@ loop:
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			line = this.PreviousCMD
-			// fmt.Print("(eDBG) ")
-			// continue
 		} else {
 			this.PreviousCMD = line
 		}
@@ -614,6 +611,7 @@ func (this *Client) HandleContinue() {
 		return
 	}
 	this.Process.Continue()
+	this.Working = false
 }
 
 func (this *Client) HandleStep() {
