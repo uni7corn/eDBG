@@ -213,6 +213,7 @@ func main() {
 	err = brkManager.Start(brkAddressInfos)
 	if err != nil {
 		fmt.Println("Module start Failed: ", err)
+		fmt.Println("Possible reasons:\n\n1. Some instructions do not support uprobe. Try setting breakpoints on other instructions or use until to skip the current instruction.\n2. Breakpoints with invalid addresses exist. Check the breakpoint list.\n")
 		os.Exit(1)
 	}
 	fmt.Printf("Working on %s in %s. Press Ctrl+C to quit\n", libName, packageName)

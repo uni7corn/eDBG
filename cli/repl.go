@@ -168,10 +168,14 @@ loop:
 			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
 		case "step", "s":
 			this.HandleStep()
-			break loop
+			if this.HandleContinue() {
+				break loop
+			}
 		case "next", "n":
 			this.HandleNext()
-			break loop
+			if this.HandleContinue() {
+				break loop
+			}
 		case "examine", "x":
 			this.HandleMemory(args)
 		case "dump":
@@ -180,8 +184,9 @@ loop:
 			this.CleanUp()
 			return
 		case "continue", "c":
-			this.HandleContinue()
-			break loop
+			if this.HandleContinue() {
+				break loop
+			}
 		case "display", "disp":
 			this.HandleDisplay(args)
 		case "undisplay", "undisp":
@@ -192,7 +197,9 @@ loop:
 			this.HandleInfo(args)
 		case "finish", "fi":
 			this.HandleFinish()
-			return
+			if this.HandleContinue() {
+				break loop
+			}
 		case "return":
 			fmt.Println("Command return is not supported because eDBG cannot perform modification. Use finish or fi instead.")
 		case "backtrace", "bt":
@@ -209,7 +216,9 @@ loop:
 			this.HandleDelete(args)
 		case "until", "u":
 			this.HandleUntil(args)
-			return
+			if this.HandleContinue() {
+				break loop
+			}
 		case "run", "r":
 			fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
 		case "set":
@@ -381,7 +390,7 @@ func (this *Client) HandleFinish() {
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
-	this.HandleContinue()
+	// this.HandleContinue()
 }
 
 func (this *Client) CleanUp() {
@@ -558,7 +567,7 @@ func (this *Client) HandleUntil(args []string) {
 	if err = this.BrkManager.SetTempBreak(address, this.Process.WorkTid); err != nil {
 		fmt.Printf("Failed to set Temporary breakpoint: %v\n", err)
 	} else {
-		this.HandleContinue()
+		// this.HandleContinue()
 	}
 }
 
@@ -605,15 +614,18 @@ func (this *Client) HandleBreak(args []string) {
 	}
 }
 
-func (this *Client) HandleContinue() {
+func (this *Client) HandleContinue() bool {
 	err := this.BrkManager.SetupProbe()
 	if err != nil {
 		fmt.Printf("Failed to Continue: %v\n", err)
-		this.CleanUp()
-		return
+		this.BrkManager.ClearTempBreak()
+		// this.CleanUp()
+		fmt.Println("Possible reasons:\n\n1. Some instructions do not support uprobe. Try setting breakpoints on other instructions or use until to skip the current instruction.\n2. Breakpoints with invalid addresses exist. Check the breakpoint list.\n")
+		return false
 	}
 	this.NotifyContinue <- true
 	this.Working = false
+	return true
 }
 
 func (this *Client) HandleStep() {
@@ -636,7 +648,7 @@ func (this *Client) HandleStep() {
 			return
 		}
 		this.BrkManager.SetTempBreak(address2, this.Process.WorkTid)
-		this.HandleContinue()
+		// this.HandleContinue()
 		return
 	}
 	if err != nil {
@@ -649,7 +661,7 @@ func (this *Client) HandleStep() {
 		return
 	}
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
-	this.HandleContinue()
+	// this.HandleContinue()
 }
 
 func (this *Client) HandleNext() {
@@ -672,7 +684,7 @@ func (this *Client) HandleNext() {
 			return
 		}
 		this.BrkManager.SetTempBreak(address2, this.Process.WorkTid)
-		this.HandleContinue()
+		// this.HandleContinue()
 		return
 	}
 	if err != nil {
@@ -685,7 +697,7 @@ func (this *Client) HandleNext() {
 		return
 	}
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
-	this.HandleContinue()
+	// this.HandleContinue()
 }
 
 func (this *Client) HandleWrite(args []string) {
