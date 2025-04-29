@@ -19,7 +19,9 @@ type EventListener struct {
 	process *controller.Process
 	ByteOrder binary.ByteOrder
 	Incomingdata chan []byte
+	EventData chan []byte
 	Record  chan perf.Record
+	WaitingEvents int
 }
 
 
@@ -28,6 +30,7 @@ func CreateEventListener(process *controller.Process) *EventListener {
 		process: process, 
 		ByteOrder: getHostByteOrder(), 
 		Incomingdata: make(chan []byte, 512),
+		EventData: make(chan []byte, 512),
 		Record: make(chan perf.Record, 1),
 	}
 }
@@ -79,45 +82,68 @@ func (this *EventListener) Run() {
 			this.Workdata(data)
 		}
 	}()
+	go func() {
+		for {
+			data := <- this.EventData 
+			this.WorkEvent(data)
+			<- this.client.NotifyContinue
+			this.WaitingEvents -= 1
+			if this.WaitingEvents == 0 {
+				this.process.Continue()
+			}
+		}
+	}()
 }
 
-
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
+	this.WaitingEvents += 1 // 还是有触发竞争的可能，但是每次加锁效率有点低，感觉高并发场景需求没那么高
+	this.EventData <- data
+}
+func (this *EventListener) PassEvent(IsHardware bool) {
+	if IsHardware {
+		<- this.Record // 舍弃这个 Sample
+	}
+	this.client.Working = false
+	this.client.NotifyContinue <- true
+}
+func (this *EventListener) WorkEvent(data []byte) {
+	for {
+		if !this.client.Working {
+			break
+		}
+	}
+	this.client.Working = true
 	this.process.UpdatePidList()
 	bo := this.ByteOrder
 	this.pid = bo.Uint32(data[4:8])
 	nowTid := bo.Uint32(data[12+8*34:16+8*34])
-	// fmt.Printf("Suspened on %d %d\n", this.pid, nowTid)
 	PC := bo.Uint64(data[12+8*32:12+8*33])
-	if this.client.BrkManager.TempBreakTid != 0 {
-		if PC == 0xFFFFFFFF { 
-			// uprobe 的先不管，有 issue 再说
-			if nowTid == this.client.BrkManager.TempBreakTid {
-				this.process.WorkTid = nowTid
-				// this.process.Stop()
-				this.process.StoppedPID(this.pid)
-				if PC == 0xFFFFFFFF {
-					dataRaw := <-this.Record
-					this.Incomingdata <- dataRaw.RawSample[12:]
-				} else {
-					this.Incomingdata <- data
-				}
-				
-				this.client.DoClean <- true
-				return
-			}
-			// 单步调试断点被其他线程命中
-			if PC == 0xFFFFFFFF {
-				<- this.Record // 舍弃这个 Sample
-			}
-			syscall.Kill(int(this.pid), syscall.SIGCONT)
-			return
-		}
-	}
 
 	for _, ablepid := range this.process.PidList {
 		if this.pid == ablepid {
 			this.process.WorkPid = this.pid
+			this.process.StoppedPID(this.pid)
+			if this.client.BrkManager.TempBreakTid != 0 {
+				// 临时断点判断线程 ID
+				if PC == 0xFFFFFFFF { 
+					if nowTid == this.client.BrkManager.TempBreakTid {
+						this.process.WorkTid = nowTid
+						if PC == 0xFFFFFFFF {
+							dataRaw := <-this.Record
+							this.Incomingdata <- dataRaw.RawSample[12:]
+						} else {
+							this.Incomingdata <- data
+						}
+						
+						this.client.DoClean <- true
+						return
+					}
+					// 单步调试断点被其他线程命中
+					this.PassEvent(PC == 0xFFFFFFFF)
+					return
+				}
+			}
+
 			valid := false
 			for _, t := range this.client.Config.ThreadFilters {
 				if !t.Enable {
@@ -127,7 +153,6 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 					valid = true
 					if nowTid == t.Thread.Tid {
 						this.process.WorkTid = nowTid
-						this.process.StoppedPID(this.pid)
 						if PC == 0xFFFFFFFF {
 							dataRaw := <-this.Record
 							this.Incomingdata <- dataRaw.RawSample[12:]
@@ -184,12 +209,13 @@ func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMa
 				this.client.DoClean <- true
 				return
 			}
-			
+			this.PassEvent(PC == 0xFFFFFFFF)
+			// 目标 PID，在确认 Event 清空后 Continue
+			return
 		}
 	}
-	if PC == 0xFFFFFFFF {
-		<- this.Record // 舍弃这个 Sample
-	}
+	// 无关 PID 直接 Continue
+	this.PassEvent(PC == 0xFFFFFFFF)
 	syscall.Kill(int(this.pid), syscall.SIGCONT)
 }
 
