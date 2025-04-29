@@ -40,6 +40,7 @@ type Client struct {
 	Incoming chan bool
 	Done chan bool
 	DoClean chan bool
+	NotifyContinue chan bool
 	PreviousCMD string
 	Working bool
 }
@@ -53,6 +54,7 @@ func CreateClient(process *controller.Process, library *controller.LibraryInfo, 
 		Incoming: make(chan bool, 1), 
 		Done: make(chan bool, 1), 
 		DoClean: make(chan bool, 1), 
+		NotifyContinue: make(chan bool, 1), 
 		PreviousCMD: "",
 	}
 }
@@ -610,7 +612,7 @@ func (this *Client) HandleContinue() {
 		this.CleanUp()
 		return
 	}
-	this.Process.Continue()
+	this.NotifyContinue <- true
 	this.Working = false
 }
 
