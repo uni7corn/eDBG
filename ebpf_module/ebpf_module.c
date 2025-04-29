@@ -81,15 +81,15 @@ PROBE(17)
 PROBE(18)
 PROBE(19)
 PROBE(20)
-
+PROBE(21)
+PROBE(22)
+PROBE(23)
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
 } brk_events SEC(".maps");
-// struct bpf_perf_event_data * bpf_ctx
-// SEC("perf_event")
 
-SEC("kprobe/bpf_perf_event_output")
+SEC("kprobe/perf_output_sample")
 int probe_perf(struct pt_regs *ctx ) {
     __u32 zero = 0;
     struct data_t *data = bpf_map_lookup_elem(&event_map, &zero);
