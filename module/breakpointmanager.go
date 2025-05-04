@@ -214,7 +214,7 @@ func (this *BreakPointManager) ChangeBreakPoint(id int, status bool) {
 }
 
 func (this *BreakPointManager) DeleteBreakPoint(id int) {
-	if id > len(this.BreakPoints) {
+	if id >= len(this.BreakPoints) {
 		fmt.Println("Breakpoint doesn't exist.")
 		return
 	}
