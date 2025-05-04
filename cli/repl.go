@@ -156,7 +156,6 @@ loop:
 		parts := strings.Fields(line)
 		cmd := parts[0]
 		args := parts[1:]
-
 		switch cmd {
 		case "break", "b":
 			this.HandleBreak(args)
@@ -167,13 +166,11 @@ loop:
 		case "watch":
 			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
 		case "step", "s":
-			this.HandleStep()
-			if this.HandleContinue() {
+			if this.HandleStep() && this.HandleContinue() {
 				break loop
 			}
 		case "next", "n":
-			this.HandleNext()
-			if this.HandleContinue() {
+			if this.HandleNext() && this.HandleContinue() {
 				break loop
 			}
 		case "examine", "x":
@@ -196,8 +193,7 @@ loop:
 		case "info", "i":
 			this.HandleInfo(args)
 		case "finish", "fi":
-			this.HandleFinish()
-			if this.HandleContinue() {
+			if this.HandleFinish() && this.HandleContinue() {
 				break loop
 			}
 		case "return":
@@ -215,8 +211,7 @@ loop:
 		case "delete":
 			this.HandleDelete(args)
 		case "until", "u":
-			this.HandleUntil(args)
-			if this.HandleContinue() {
+			if this.HandleUntil(args) && this.HandleContinue() {
 				break loop
 			}
 		case "run", "r":
@@ -382,14 +377,15 @@ func (this *Client) HandleDelete(args []string) {
 	this.BrkManager.DeleteBreakPoint(int(id))
 }
 
-func (this *Client) HandleFinish() {
+func (this *Client) HandleFinish() bool {
 	address, err := this.Process.ParseAddress(this.Process.Context.LR)
 	if err != nil {
 		fmt.Printf("Failed to parse LR: %v\n", err)
-		return
+		return false
 	}
 	// fmt.Printf("Next addr: %s+%x\n", address.LibInfo.LibName, address.Offset)
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
+	return true
 	// this.HandleContinue()
 }
 
@@ -549,19 +545,19 @@ func (this *Client) ParseUserAddress(arg string) (*controller.Address, error) {
 	}
 }
 
-func (this *Client) HandleUntil(args []string) {
+func (this *Client) HandleUntil(args []string) bool {
 	if len(args) == 0 {
 		fmt.Println("Usage: until <address>")
-		return
+		return false
 	}
 	address, err := this.ParseUserAddress(args[0])
 	if err != nil {
 		fmt.Printf("Failed to parse address: %v\n", err)
-		return
+		return false
 	}
 	if address.Absolute == 0 {
 		fmt.Printf("Relative address is not support for until\n")
-		return
+		return false
 	}
 	
 	if err = this.BrkManager.SetTempBreak(address, this.Process.WorkTid); err != nil {
@@ -569,6 +565,7 @@ func (this *Client) HandleUntil(args []string) {
 	} else {
 		// this.HandleContinue()
 	}
+	return true
 }
 
 func (this *Client) HandleHBreak(args []string, Type int) {
@@ -628,76 +625,78 @@ func (this *Client) HandleContinue() bool {
 	return true
 }
 
-func (this *Client) HandleStep() {
+func (this *Client) HandleStep() bool {
 	NextPC, err := utils.PredictNextPC(this.Process.WorkPid, this.Process.Context, true)
 	if NextPC == 0xDEADBEEF {
 		target, err := utils.GetTarget(this.Process.WorkPid, this.Process.Context)
 		if err != nil {
 			fmt.Printf("Failed to get branch target: %v\n", err)
-			return
+			return false
 		}
 		address, err := this.Process.ParseAddress(uint64(this.Process.Context.GetPC()+4))
 		if err != nil {
 			fmt.Printf("Failed to parse nextPC: %v\n", err)
-			return
+			return false
 		}
 		this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
 		address2, err := this.Process.ParseAddress(uint64(target))
 		if err != nil {
 			fmt.Printf("Failed to parse nextPC: %v\n", err)
-			return
+			return false
 		}
 		this.BrkManager.SetTempBreak(address2, this.Process.WorkTid)
 		// this.HandleContinue()
-		return
+		return true
 	}
 	if err != nil {
 		fmt.Printf("Failed to predict next addr: %v\n", err)
-		return
+		return false
 	}
 	address, err := this.Process.ParseAddress(uint64(NextPC))
 	if err != nil {
 		fmt.Printf("Failed to parse nextPC: %v\n", err)
-		return
+		return false
 	}
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
 	// this.HandleContinue()
+	return true
 }
 
-func (this *Client) HandleNext() {
+func (this *Client) HandleNext() bool {
 	NextPC, err := utils.PredictNextPC(this.Process.WorkPid, this.Process.Context, false)
 	if NextPC == 0xDEADBEEF {
 		target, err := utils.GetTarget(this.Process.WorkPid, this.Process.Context)
 		if err != nil {
 			fmt.Printf("Failed to get branch target: %v\n", err)
-			return
+			return false
 		}
 		address, err := this.Process.ParseAddress(uint64(this.Process.Context.GetPC()+4))
 		if err != nil {
 			fmt.Printf("Failed to parse nextPC: %v\n", err)
-			return
+			return false
 		}
 		this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
 		address2, err := this.Process.ParseAddress(uint64(target))
 		if err != nil {
 			fmt.Printf("Failed to parse nextPC: %v\n", err)
-			return
+			return false
 		}
 		this.BrkManager.SetTempBreak(address2, this.Process.WorkTid)
 		// this.HandleContinue()
-		return
+		return true
 	}
 	if err != nil {
 		fmt.Printf("Failed to predict next addr: %v\n", err)
-		return
+		return false
 	}
 	address, err := this.Process.ParseAddress(uint64(NextPC))
 	if err != nil {
 		fmt.Printf("Failed to parse nextPC: %v\n", err)
-		return
+		return false
 	}
 	this.BrkManager.SetTempBreak(address, this.Process.WorkTid)
 	// this.HandleContinue()
+	return true
 }
 
 func (this *Client) HandleWrite(args []string) {
