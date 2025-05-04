@@ -88,6 +88,7 @@ func (this *EventListener) Run() {
 			this.WorkEvent(data)
 			<- this.client.NotifyContinue
 			this.WaitingEvents -= 1
+			// fmt.Println(this.WaitingEvents)
 			if this.WaitingEvents == 0 {
 				this.process.Continue()
 			}

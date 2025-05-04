@@ -28,12 +28,6 @@ static __always_inline u32 do_probe(struct pt_regs* ctx, u32 point_key) {
     __u32 zero = 0;
     struct data_t *data = bpf_map_lookup_elem(&event_map, &zero);
     if (!data) return 0; 
-    // struct data_t data;
-    // data->pid = (u32)(bpf_get_ns_current_pid_tgid() >> 32);
-    // struct task_struct *task = (struct task_struct *) bpf_get_current_task();
-    // struct task_struct *group_leader = READ_KERN(task->group_leader);
-    // data->pid = (u32) get_task_pid(group_leader);
-    // data->tid = (__u64) get_task_pid(task);
 
     data->pid = bpf_get_current_pid_tgid() >> 32;
     data->tid = (__u32)bpf_get_current_pid_tgid();
@@ -46,8 +40,7 @@ static __always_inline u32 do_probe(struct pt_regs* ctx, u32 point_key) {
     bpf_probe_read_kernel(&data->pstate, sizeof(data->pstate), &ctx->pstate);
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, data, sizeof(struct data_t));
     bpf_send_signal(19);
-    // bpf_send_signal_task(group_leader, 19, PIDTYPE_TGID, 8);
-    return 0;
+    return 0;   
 }
 
 
