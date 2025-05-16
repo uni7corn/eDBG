@@ -221,6 +221,7 @@ func main() {
     client.Run()
 	eventListener.Run()
     <-stopper
+	fmt.Println("Quiting eDBG...")
     process.Continue()
 	// _ = brkManager.Stop()
 	if save {

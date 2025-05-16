@@ -89,7 +89,9 @@ func (this *EventListener) Run() {
 			this.WorkEvent(data)
 			<- this.client.NotifyContinue
 			// this.client.Time = time.Now()
-			this.WaitingEvents -= 1
+			if this.WaitingEvents > 0 {
+				this.WaitingEvents -= 1
+			}			
 			// fmt.Println("Event End.")
 			// fmt.Println(this.WaitingEvents)
 			if this.WaitingEvents == 0 {

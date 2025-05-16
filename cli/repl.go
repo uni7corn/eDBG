@@ -68,12 +68,15 @@ func (this *Client) Run() {
 		}
 	}()
 	go func() {
-		// for {
+		for {
 			<- this.Incoming
 			// fmt.Println("Incoming!")
 			this.OutputInfo()
-			this.REPL()
-		// }
+			
+		}
+	}()
+	go func() {
+		this.REPL()
 	}()
 }
 
@@ -184,13 +187,13 @@ func (this *Client) executeCommand(line string) {
 			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
 		case "step", "s":
 			if this.HandleStep() && this.HandleContinue() {
-				<- this.Incoming
-				this.OutputInfo()
+				// <- this.Incoming
+				// this.OutputInfo()
 			}
 		case "next", "n":
 			if this.HandleNext() && this.HandleContinue() {
-				<- this.Incoming
-				this.OutputInfo()
+				// <- this.Incoming
+				// this.OutputInfo()
 			}
 		case "examine", "x":
 			this.HandleMemory(args)
@@ -201,8 +204,8 @@ func (this *Client) executeCommand(line string) {
 			return
 		case "continue", "c":
 			if this.HandleContinue() {
-				<- this.Incoming
-				this.OutputInfo()
+				// <- this.Incoming
+				// this.OutputInfo()
 			}
 		case "display", "disp":
 			this.HandleDisplay(args)
@@ -214,8 +217,8 @@ func (this *Client) executeCommand(line string) {
 			this.HandleInfo(args)
 		case "finish", "fi":
 			if this.HandleFinish() && this.HandleContinue() {
-				<- this.Incoming
-				this.OutputInfo()
+				// <- this.Incoming
+				// this.OutputInfo()
 			}
 		case "return":
 			fmt.Println("Command return is not supported because eDBG cannot perform modification. Use finish or fi instead.")
@@ -233,8 +236,8 @@ func (this *Client) executeCommand(line string) {
 			this.HandleDelete(args)
 		case "until", "u":
 			if this.HandleUntil(args) && this.HandleContinue() {
-				<- this.Incoming
-				this.OutputInfo()
+				// <- this.Incoming
+				// this.OutputInfo()
 			}
 		case "run", "r":
 			fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
@@ -265,8 +268,11 @@ func (this *Client) completer(d prompt.Document) []prompt.Suggest {
 		{Text: "next", Description: "Step over instruction [n]"},
 		{Text: "continue", Description: "Continue execution [c]"},
 		{Text: "disassemble", Description: "Disassemble instructions [dis]"},
+		{Text: "list", Description: "Disassemble instructions [l]"},
+		{Text: "set", Description: "Set a name for specified address"},
 		{Text: "info", Description: "Show debug information [i]"},
 		{Text: "display", Description: "Add memory display [disp]"},
+		{Text: "until", Description: "Execute to specified address [u]"},
 		{Text: "undisplay", Description: "Remove memory display [undisp]"},
 		{Text: "x", Description: "Examine memory [x]"},
 		{Text: "dump", Description: "Dump memory to file"},
@@ -274,7 +280,7 @@ func (this *Client) completer(d prompt.Document) []prompt.Suggest {
 		{Text: "quit", Description: "Exit debugger [q]"},
 		{Text: "examine", Description: "Examine memory [x]"},
 		{Text: "finish", Description: "Execute until function return [fi]"},
-		{Text: "until", Description: "Execute to specified address [u]"},
+		{Text: "write", Description: "Write memory"},
 	}
 	return prompt.FilterHasPrefix(s, d.GetWordBeforeCursor(), true)
 }
