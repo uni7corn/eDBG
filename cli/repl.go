@@ -1,17 +1,16 @@
 package cli
 
 import (
-	"eDBG/utils"
-	"eDBG/controller"
 	"eDBG/config"
+	"eDBG/controller"
 	"eDBG/module"
-	"os"
+	"eDBG/utils"
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 	"syscall"
-	"bufio"
-	// "time"
+
+	"github.com/c-bata/go-prompt"
 )
 
 type DisplayInfo struct {
@@ -44,7 +43,7 @@ type Client struct {
 	NotifyContinue chan bool
 	PreviousCMD string
 	Working bool
-	// Time time.Time
+	promptInstance *prompt.Prompt
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager, config *UserConfig) *Client {
@@ -69,12 +68,12 @@ func (this *Client) Run() {
 		}
 	}()
 	go func() {
-		for {
+		// for {
 			<- this.Incoming
 			// fmt.Println("Incoming!")
 			this.OutputInfo()
 			this.REPL()
-		}
+		// }
 	}()
 }
 
@@ -140,26 +139,39 @@ func (this *Client) StopProbes() {
 }
 
 func (this *Client) REPL() {
-	// fmt.Println(time.Since(this.Time))
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("(eDBG) ")
-loop:
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			line = this.PreviousCMD
-		} else {
-			this.PreviousCMD = line
-		}
+	this.promptInstance = prompt.New(
+		this.executeCommand,
+		this.completer,
+		prompt.OptionPrefix("(eDBG) "),
+		// prompt.OptionTitle("eDBG REPL"),
+		prompt.OptionPrefixTextColor(prompt.Blue),
+		prompt.OptionLivePrefix(func() (string, bool) {
+			return "(eDBG) ", true
+		}),
+		prompt.OptionAddKeyBind(
+			prompt.KeyBind{
+				Key: prompt.ControlC,
+				Fn: func(b *prompt.Buffer) {
+					this.CleanUp()
+				},
+			},
+		),
+	)
+	this.promptInstance.Run()
+}
 
-		if line == "" {
-			fmt.Print("(eDBG) ")
-			continue
-		}
-		parts := strings.Fields(line)
-		cmd := parts[0]
-		args := parts[1:]
-		switch cmd {
+func (this *Client) executeCommand(line string) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		line = this.PreviousCMD
+	} else {
+		this.PreviousCMD = line
+	}
+
+	parts := strings.Fields(line)
+	cmd := parts[0]
+	args := parts[1:]
+	switch cmd {
 		case "break", "b":
 			this.HandleBreak(args)
 		case "hbreak", "hb":
@@ -170,11 +182,13 @@ loop:
 			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
 		case "step", "s":
 			if this.HandleStep() && this.HandleContinue() {
-				break loop
+				<- this.Incoming
+				this.OutputInfo()
 			}
 		case "next", "n":
 			if this.HandleNext() && this.HandleContinue() {
-				break loop
+				<- this.Incoming
+				this.OutputInfo()
 			}
 		case "examine", "x":
 			this.HandleMemory(args)
@@ -185,7 +199,8 @@ loop:
 			return
 		case "continue", "c":
 			if this.HandleContinue() {
-				break loop
+				<- this.Incoming
+				this.OutputInfo()
 			}
 		case "display", "disp":
 			this.HandleDisplay(args)
@@ -197,7 +212,8 @@ loop:
 			this.HandleInfo(args)
 		case "finish", "fi":
 			if this.HandleFinish() && this.HandleContinue() {
-				break loop
+				<- this.Incoming
+				this.OutputInfo()
 			}
 		case "return":
 			fmt.Println("Command return is not supported because eDBG cannot perform modification. Use finish or fi instead.")
@@ -215,7 +231,8 @@ loop:
 			this.HandleDelete(args)
 		case "until", "u":
 			if this.HandleUntil(args) && this.HandleContinue() {
-				break loop
+				<- this.Incoming
+				this.OutputInfo()
 			}
 		case "run", "r":
 			fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
@@ -225,10 +242,36 @@ loop:
 			this.HandleWrite(args)
 		default:
 			fmt.Println("Unknown command:", cmd)
-		}
-
-		fmt.Print("(eDBG) ")
 	}
+}
+
+func (this *Client) completer(d prompt.Document) []prompt.Suggest {
+	words := strings.Split(d.Text, " ")
+    if len(words) != 1 || len(d.Text) == 0 {
+        return nil
+    }
+
+	s := []prompt.Suggest{
+		{Text: "break", Description: "Set software breakpoint [b]"},
+		{Text: "hbreak", Description: "Set hardware breakpoint [hb]"},
+		{Text: "watch", Description: "Set watchpoint"},
+		{Text: "step", Description: "Step into instruction [s]"},
+		{Text: "next", Description: "Step over instruction [n]"},
+		{Text: "continue", Description: "Continue execution [c]"},
+		{Text: "disassemble", Description: "Disassemble instructions [dis]"},
+		{Text: "info", Description: "Show debug information [i]"},
+		{Text: "display", Description: "Add memory display [disp]"},
+		{Text: "undisplay", Description: "Remove memory display [undisp]"},
+		{Text: "x", Description: "Examine memory [x]"},
+		{Text: "dump", Description: "Dump memory to file"},
+		{Text: "thread", Description: "Manage threads [t]"},
+		{Text: "quit", Description: "Exit debugger [q]"},
+		{Text: "next", Description: "Step over instruction"},
+		{Text: "continue", Description: "Continue execution"},
+		{Text: "disassemble", Description: "Disassemble instructions"},
+		{Text: "info", Description: "Show program info"},
+	}
+	return prompt.FilterHasPrefix(s, d.GetWordBeforeCursor(), true)
 }
 
 func (this *Client) HandleSet(args []string) {
