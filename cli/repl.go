@@ -167,7 +167,9 @@ func (this *Client) executeCommand(line string) {
 	} else {
 		this.PreviousCMD = line
 	}
-
+	if line == "" {
+		return
+	}
 	parts := strings.Fields(line)
 	cmd := parts[0]
 	args := parts[1:]
@@ -253,8 +255,12 @@ func (this *Client) completer(d prompt.Document) []prompt.Suggest {
 
 	s := []prompt.Suggest{
 		{Text: "break", Description: "Set software breakpoint [b]"},
+		{Text: "enable", Description: "Enable breakpoint"},
+		{Text: "disable", Description: "Disable breakpoint"},
+		{Text: "delete", Description: "Delete breakpoint"},
 		{Text: "hbreak", Description: "Set hardware breakpoint [hb]"},
-		{Text: "watch", Description: "Set watchpoint"},
+		{Text: "watch", Description: "Set watchpoint (write)"},
+		{Text: "rwatch", Description: "Set watchpoint (read)"},
 		{Text: "step", Description: "Step into instruction [s]"},
 		{Text: "next", Description: "Step over instruction [n]"},
 		{Text: "continue", Description: "Continue execution [c]"},
@@ -266,10 +272,9 @@ func (this *Client) completer(d prompt.Document) []prompt.Suggest {
 		{Text: "dump", Description: "Dump memory to file"},
 		{Text: "thread", Description: "Manage threads [t]"},
 		{Text: "quit", Description: "Exit debugger [q]"},
-		{Text: "next", Description: "Step over instruction"},
-		{Text: "continue", Description: "Continue execution"},
-		{Text: "disassemble", Description: "Disassemble instructions"},
-		{Text: "info", Description: "Show program info"},
+		{Text: "examine", Description: "Examine memory [x]"},
+		{Text: "finish", Description: "Execute until function return [fi]"},
+		{Text: "until", Description: "Execute to specified address [u]"},
 	}
 	return prompt.FilterHasPrefix(s, d.GetWordBeforeCursor(), true)
 }
