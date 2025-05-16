@@ -11,6 +11,7 @@ import(
 	"strings"
 	"eDBG/cli"
 	"fmt"
+	// "time"
 )
 
 type EventListener struct {
@@ -87,9 +88,14 @@ func (this *EventListener) Run() {
 			data := <- this.EventData 
 			this.WorkEvent(data)
 			<- this.client.NotifyContinue
-			this.WaitingEvents -= 1
+			// this.client.Time = time.Now()
+			if this.WaitingEvents > 0 {
+				this.WaitingEvents -= 1
+			}			
+			// fmt.Println("Event End.")
 			// fmt.Println(this.WaitingEvents)
 			if this.WaitingEvents == 0 {
+				// fmt.Println("OK, Continue.")
 				this.process.Continue()
 			}
 		}
@@ -98,9 +104,11 @@ func (this *EventListener) Run() {
 
 func (this *EventListener) OnEvent(cpu int, data []byte, perfmap *manager.PerfMap, manager *manager.Manager) {
 	this.WaitingEvents += 1 // 还是有触发竞争的可能，但是每次加锁效率有点低，感觉高并发场景需求没那么高
+	// fmt.Println("OnEvent: ", this.ByteOrder.Uint32(data[4:8]))
 	this.EventData <- data
 }
 func (this *EventListener) PassEvent(IsHardware bool) {
+	// fmt.Println("PASSED EVENT")
 	if IsHardware {
 		<- this.Record // 舍弃这个 Sample
 	}
@@ -108,11 +116,13 @@ func (this *EventListener) PassEvent(IsHardware bool) {
 	this.client.NotifyContinue <- true
 }
 func (this *EventListener) WorkEvent(data []byte) {
+	// fmt.Println("Event: ", this.ByteOrder.Uint32(data[4:8]))
 	for {
 		if !this.client.Working {
 			break
 		}
 	}
+	// fmt.Println("Event Start:", this.ByteOrder.Uint32(data[4:8]))
 	this.client.Working = true
 	this.process.UpdatePidList()
 	bo := this.ByteOrder
@@ -140,6 +150,9 @@ func (this *EventListener) WorkEvent(data []byte) {
 						return
 					}
 					// 单步调试断点被其他线程命中
+					// 这里默认了如果存在单步调试断点那么下一个触发的一定是单步调试断点
+					// 如果硬件断点失效会出错
+					// fmt.Println("PASSED: SingleStep")
 					this.PassEvent(PC == 0xFFFFFFFF)
 					return
 				}
@@ -210,12 +223,14 @@ func (this *EventListener) WorkEvent(data []byte) {
 				this.client.DoClean <- true
 				return
 			}
+			// fmt.Println("PASSED: PID ABLE BUT FILTERED BY THREAD")
 			this.PassEvent(PC == 0xFFFFFFFF)
 			// 目标 PID，在确认 Event 清空后 Continue
 			return
 		}
 	}
 	// 无关 PID 直接 Continue
+	// fmt.Println("PASSED: Unrelated PID")
 	this.PassEvent(PC == 0xFFFFFFFF)
 	syscall.Kill(int(this.pid), syscall.SIGCONT)
 }

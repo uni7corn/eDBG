@@ -29,12 +29,14 @@ type BreakPointManager struct {
 	temporaryBreakPoint []*BreakPoint
 	ProbeHandler *ProbeHandler
 	TempBreakTid uint32
+	Running bool
 }
 
 func CreateBreakPointManager(listener IEventListener, BTF_File string, process *controller.Process) *BreakPointManager {
 	return &BreakPointManager{
 		process: process,
 		ProbeHandler: CreateProbeHandler(listener, BTF_File), 
+		Running: false,
 	}
 }
 
@@ -93,7 +95,7 @@ func (this *BreakPointManager) CreateBreakPoint(address *controller.Address, ena
 	}
 	for _, brk := range this.BreakPoints {
 		if !brk.Deleted && controller.Equals(address, brk.Addr) {
-			fmt.Println("What?")
+			// fmt.Println("What?")
 			if brk.Enable != enable {
 				brk.Enable = enable
 			} else {
@@ -148,6 +150,9 @@ func (this *BreakPointManager) ClearTempBreak() {
 }
 
 func (this *BreakPointManager) SetupProbe() error {
+	if this.Running {
+		return fmt.Errorf("Probes are running now.")
+	}
 	if len(this.temporaryBreakPoint) == 0 {
 		this.TempBreakTid = 0
 	}
@@ -161,6 +166,7 @@ func (this *BreakPointManager) SetupProbe() error {
 	if err != nil {
 		return err
 	}
+	this.Running = true
 	return nil
 }
 
@@ -180,7 +186,11 @@ func (this *BreakPointManager) Start(addresss []*controller.Address) error {
 }
 
 func (this *BreakPointManager) Stop() error {
-	return this.ProbeHandler.Stop()
+	err := this.ProbeHandler.Stop()
+	if err == nil {
+		this.Running = false
+	}
+	return err
 }
 
 func (this *BreakPointManager) PrintBreakPoints() {

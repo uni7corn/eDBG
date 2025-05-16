@@ -15,6 +15,7 @@ type ProcessContext struct {
 }
 
 func (this *ProcessContext) GetReg(key int) uint64 {
+	// W系寄存器
 	if key <= 29 {
 		return this.Regs[key] & 0xFFFFFFFF
 	}
@@ -24,7 +25,18 @@ func (this *ProcessContext) GetReg(key int) uint64 {
 	if key == 31 {
 		return this.SP
 	}
-	return this.Regs[key-32]
+	key -= 32 // X系寄存器
+	if key <= 29 {
+		return this.Regs[key]
+	}
+	if key == 30 {
+		return this.LR
+	}
+	if key == 31 {
+		return this.SP
+	}
+	fmt.Println("WARNING: Unsupported register type")
+	return 0 //不支持
 }
 func (this *ProcessContext) GetPC() uint64 {
 	return this.PC
