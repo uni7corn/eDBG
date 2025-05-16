@@ -110,9 +110,9 @@ func PredictNextPC(pid uint32, ctx IContext, Step bool) (uintptr, error) {
 
     // 2. 处理分支指令
     switch inst.Op {
-	case arm64asm.RET:
-		return uintptr(ctx.GetLR()), nil
-	case arm64asm.BR:
+	// case :
+	// 	return uintptr(ctx.GetLR()), nil
+	case arm64asm.BR, arm64asm.RET:
 		if reg, ok := inst.Args[0].(arm64asm.Reg); ok {
             target := ctx.GetReg(int(reg))
             return uintptr(target), nil

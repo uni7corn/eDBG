@@ -147,8 +147,8 @@ func FindLibPathFromPackage(name string) []string {
 func (this *Process) Continue() error {
 	Continued := make(map[uint32]bool)
 	for _, pid := range this.StoppedPid {
-		// fmt.Printf("Continued pid: %d\n", int(pid))
 		if val, ok := Continued[pid]; !ok || !val {
+			// fmt.Printf("Continued pid: %d\n", int(pid))
 			this.MapsUpToDate[pid] = false
 			this.ThreadsUpToDate[pid] = false
 			err := syscall.Kill(int(pid), syscall.SIGCONT)
@@ -168,6 +168,7 @@ func (this *Process) Continue() error {
 }
 
 func (this *Process) StoppedPID(pid uint32) {
+	// fmt.Println("Really Stopped: ", pid)
 	this.StoppedPid = append(this.StoppedPid, pid)
 }
 

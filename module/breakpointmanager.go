@@ -93,7 +93,7 @@ func (this *BreakPointManager) CreateBreakPoint(address *controller.Address, ena
 	}
 	for _, brk := range this.BreakPoints {
 		if !brk.Deleted && controller.Equals(address, brk.Addr) {
-			fmt.Println("What?")
+			// fmt.Println("What?")
 			if brk.Enable != enable {
 				brk.Enable = enable
 			} else {

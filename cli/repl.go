@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"syscall"
 	"bufio"
+	// "time"
 )
 
 type DisplayInfo struct {
@@ -43,6 +44,7 @@ type Client struct {
 	NotifyContinue chan bool
 	PreviousCMD string
 	Working bool
+	// Time time.Time
 }
 
 func CreateClient(process *controller.Process, library *controller.LibraryInfo, brkManager *module.BreakPointManager, config *UserConfig) *Client {
@@ -138,6 +140,7 @@ func (this *Client) StopProbes() {
 }
 
 func (this *Client) REPL() {
+	// fmt.Println(time.Since(this.Time))
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Print("(eDBG) ")
 loop:
