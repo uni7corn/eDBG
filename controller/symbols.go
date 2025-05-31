@@ -161,6 +161,9 @@ func (this *Process) GetSymbol(address uint64) string {
 	}
 	addressInfo, err := this.ParseAddress(address)
 	if err == nil {
+		if addressInfo.IsAnouymous() {
+			return ""
+		}
 		if addressInfo.LibInfo.SymbolExtracted == true {
 			return fmt.Sprintf("%s<%s+%x>%s", config.GREEN, addressInfo.LibInfo.LibName, addressInfo.Offset, config.NC)
 		}
