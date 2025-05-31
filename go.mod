@@ -6,6 +6,7 @@ require (
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/cilium/ebpf v0.17.3
 	github.com/gojue/ebpfmanager v0.4.6
+	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
 	github.com/shuLhan/go-bindata v4.0.0+incompatible
 	golang.org/x/arch v0.15.0
 	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2

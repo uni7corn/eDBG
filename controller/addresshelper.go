@@ -34,9 +34,11 @@ func NewAddress(libInfo *LibraryInfo, offset uint64) *Address {
 		Permission: "rwxp",
 	}
 }
-
+func (this *Address) IsAnouymous() bool {
+    return this.LibInfo.LibName == "UNNAMED"
+}
 func Equals(a *Address, b *Address) bool {
-    if a.LibInfo.LibName == b.LibInfo.LibName && a.Offset == b.Offset {
+    if !a.IsAnouymous() && a.LibInfo.LibName == b.LibInfo.LibName && a.Offset == b.Offset {
         return true
     }
     if a.Absolute == b.Absolute && a.Absolute != 0 {
@@ -77,7 +79,7 @@ func (this *ProcMaps) ParseAbsoluteAddress(process *Process, address uint64) (*A
     for _, seg := range this.segments {
         if seg.baseAddr <= address && address < seg.endAddr {
             if strings.HasPrefix(seg.libPath, "UNNAMED") || strings.HasPrefix(seg.libPath, "[") {
-                return &Address{}, fmt.Errorf("Failed to parse %x: anouymous address", address)
+                return &Address{LibInfo:&LibraryInfo{LibName:"UNNAMED"}}, nil // 忽略匿名地址
             }
 
 
@@ -159,7 +161,7 @@ func (this *ProcMaps) ParseAbsoluteAddress(process *Process, address uint64) (*A
             }
         }
     }
-    return &Address{}, fmt.Errorf("Failed to parse %x: anouymous address", address)
+    return &Address{LibInfo:&LibraryInfo{LibName:"UNNAMED"}}, nil
 }
 
 

@@ -63,12 +63,13 @@ func (this *BreakPointManager) SetTempBreak(address *controller.Address, tid uin
 	}
 
 	switch config.Preference {
-	case config.ALL_UPROBE:
+	case config.ALL_UPROBE, config.PREFER_UPROBE:
 		brk.Hardware = false
+		if address.IsAnouymous() {
+			return fmt.Errorf("Failed: Anouymous address using uprobe.")
+		}
 	case config.ALL_PERF:
 		brk.Hardware = true
-	case config.PREFER_UPROBE:
-		brk.Hardware = false
 	case config.PREFER_PERF:
 		safe, err := utils.SafeAddress(this.process.WorkPid, address.Absolute)
 		if err != nil {
@@ -81,6 +82,9 @@ func (this *BreakPointManager) SetTempBreak(address *controller.Address, tid uin
 		} else {
 			brk.Hardware = false
 		}
+		if address.IsAnouymous() {
+			brk.Hardware = true
+		}
 	}
 
 	this.TempBreakTid = tid
@@ -92,6 +96,9 @@ func (this *BreakPointManager) CreateBreakPoint(address *controller.Address, ena
 	offset := address.Offset
 	if checkOffset(offset) == false {
 		return fmt.Errorf("Invalid address: %x", offset)
+	}
+	if address.IsAnouymous() {
+		return fmt.Errorf("Anouymous address: %x, use hbreak.", offset)
 	}
 	for _, brk := range this.BreakPoints {
 		if !brk.Deleted && controller.Equals(address, brk.Addr) {
