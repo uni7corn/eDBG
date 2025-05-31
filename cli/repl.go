@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
+	"encoding/binary"
 	"github.com/c-bata/go-prompt"
 )
 
@@ -23,7 +23,7 @@ type DisplayInfo struct {
 type ThreadFilter struct {
 	Thread *controller.Thread
 	Enable bool
-}
+} 
 
 type UserConfig struct {
 	Registers bool
@@ -857,12 +857,12 @@ func (this *Client) HandleDump(args []string) {
 
 func (this *Client) HandleMemory(args []string) {
 	if len(args) == 0 {
-		fmt.Println("Usage: x <address> <length>")
+		fmt.Println("Usage: x <address> <length/type>")
 		return
 	}
 	address, err := strconv.ParseUint(args[0], 0, 64)
 	if err != nil {
-		if strings.HasPrefix(args[0], "X") {
+		if strings.HasPrefix(args[0], "X") || strings.HasPrefix(args[0], "x") {
 			regnum, err := strconv.ParseUint(args[0][1:], 0, 64)
 			if err != nil {
 				fmt.Printf("Bad Regnum: %v\n", err)
@@ -883,13 +883,43 @@ func (this *Client) HandleMemory(args []string) {
 	}
 	
 	length := 16
+	format := "hexdump"
 	if len(args) > 1 {
 		len, err := strconv.Atoi(args[1])
-		if err != nil || len <= 0 {
-			fmt.Println("Bad length")
-			return
+		if err != nil {
+			switch args[1] {
+			case "ptr":
+				format = "ptr"
+				length = 8
+			case "str":
+				format = "str"
+				outbuf := &strings.Builder{}
+				remoteAddr := uintptr(address)
+				for {
+					stringbuf := make([]byte, 1)
+					n, err := utils.ReadProcessMemory(this.Process.WorkPid, remoteAddr, stringbuf)
+					if n < 1 || err != nil || !strconv.IsPrint(rune(stringbuf[0])) {
+						break
+					}
+					outbuf.WriteByte(stringbuf[0])
+					remoteAddr += 1
+				}
+				fmt.Println(outbuf)
+				return
+			case "int":
+				format = "int"
+				length = 4
+			default:
+				fmt.Println("Invalid type or length")
+				return
+			}
+		} else {
+			if len < 0 {
+				fmt.Println("Invalid length")
+				return
+			}
+			length = len
 		}
-		length = len
 	}
 
 	data := make([]byte, length)
@@ -900,7 +930,15 @@ func (this *Client) HandleMemory(args []string) {
 		return
 	}
 
-	fmt.Println(utils.HexDump(address, data, n))
+	switch format {
+	case "hexdump":
+		fmt.Println(utils.HexDump(address, data, n))
+	case "ptr":
+		fmt.Printf("0x%x\n", binary.LittleEndian.Uint64(data))
+	case "int":
+		fmt.Printf("%d\n", binary.LittleEndian.Uint32(data))
+	}
+	
 
 }
 

@@ -81,9 +81,9 @@
 - **Memory Examination** `examine/x`
 
   - Address: `x 0x12345678` (default 16 bytes)
-  - Address+Length: `x 0x12345678 128`
   - Register: `x X0` (access [X0] memory)
-  - Register+Length: `x X0 128`
+  - Address/Register+Length: `x 0x12345678 128`
+  - Address/Register+Type: `x X0 ptr/int/str`
 - **Exit** `quit/q`: Exit debugger (won't affect target process)
 - **Information** `info/i`
 
@@ -96,6 +96,8 @@
   - `disable <id>`: Disable breakpoint
   - `delete <id>`: Remove breakpoint
 - **Repeat Command**: Press Enter with empty input
+
+More commands in "Advanced Usage".
 
 ## 🛫 Compilation
 
