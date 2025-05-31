@@ -15,6 +15,8 @@ import (
 	"eDBG/controller"
 	"encoding/json"
     "eDBG/event"
+	"github.com/inconshreveable/go-update"
+	"net/http"
     _ "github.com/shuLhan/go-bindata" // add for bindata in Makefile
 )
 type UserBreakPoints struct {
@@ -35,6 +37,34 @@ type AppConfig struct {
 	TNames      []string      `json:"tname"`
 }
 
+func doUpdate(url string) error {
+	// 在 adb shell 里似乎无法联网（悲
+	resp, err := http.Get(url)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    err = update.Apply(resp.Body, update.Options{})
+    if err != nil {
+        return err
+    }
+    return nil
+}
+func Update(proxy bool) {
+	fmt.Println("Updating...")
+	var err error
+	if proxy {
+		err = doUpdate("https://gh-proxy.com/github.com/ShinoLeah/eDBG/releases/latest/download/eDBG_arm64/")
+	} else {
+		err = doUpdate("https://github.com/ShinoLeah/eDBG/releases/latest/download/eDBG_arm64/")
+	}
+	if err != nil {
+		fmt.Printf("Update Failed: %v\n", err)
+	} else {
+		fmt.Println("eDBG is up-to-date.")
+	}
+	os.Exit(0)
+}
 func SaveConfig(path string, cfg AppConfig) error {
     jsonData, err := json.MarshalIndent(cfg, "", "  ")
     if err != nil {
@@ -70,12 +100,18 @@ func main() {
 		threadFilters string
 		disableColor bool
 		brkAddressInfos []*controller.Address
+		doupdate bool
+		proxy bool
 	)
 	var brkFlag string
-
+	doupdate = false
+	proxy = false
 	flag.StringVar(&brkFlag, "b", "", "Breakpoint addresses in hex format, e.g., [0x1234,0x5678]")
 	flag.StringVar(&packageName, "p", "", "Target package name")
 	flag.StringVar(&libName, "l", "", "Target library name")
+	// 无法运行的功能，先放着
+	// flag.BoolVar(&doupdate, "update", false, "Update eDBG")
+	// flag.BoolVar(&proxy, "update-proxy", false, "Update eDBG With Proxy")
     flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
     flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Disassemble Window")
 	flag.StringVar(&threadFilters, "t", "", "Thread name filters, e.g., [name1,name2]")
@@ -85,6 +121,12 @@ func main() {
 	flag.StringVar(&prefer, "prefer", "", "Preference. 'uprobe' for Uprobes and 'hardware' for Hardware breakpoints")
 	flag.StringVar(&outputfile, "o", "&&NotSetNotSetNotSetO=O", "Save your progress to specified file")
 	flag.Parse()
+	if doupdate {
+		Update(false)
+	}
+	if proxy {
+		Update(true)
+	}
 
 	if inputfile != "" {
 		cfg, err := LoadConfig(inputfile)

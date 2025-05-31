@@ -97,7 +97,9 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
             BinaryPath:       brk.Addr.LibInfo.LibPath,
             NonElfOffset:     brk.Addr.LibInfo.NonElfOffset,
             UAddress: brk.Addr.Offset,
+            UprobeOffset: 0,
         }
+        // fmt.Printf("Set uprobe: %s[%x]+%x\n", brk.Addr.LibInfo.RealFilePath, brk.Addr.LibInfo.NonElfOffset, brk.Addr.Offset)
         probes = append(probes, probe)
     }
     
