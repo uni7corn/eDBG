@@ -5,6 +5,7 @@ import (
 	"syscall"
 	"os/exec"
 	"strings"
+    "strconv"
 	"time"
 	"io/ioutil"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"bufio"
+    "github.com/casbin/govaluate"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -152,4 +154,31 @@ func WriteBytesToFile(filename string, data []byte) error {
     }
 
     return file.Sync()
+}
+
+func GetExprValue(input string, ctx IContext) (uint64, error) {
+    expr, err := govaluate.NewEvaluableExpression(input)
+    if err != nil {
+        return 0, fmt.Errorf("Syntax Error: %v", err)
+    }
+    parameters := make(map[string]interface{})
+    for i := 0; i < 32; i += 1 {
+        parameters["w"+strconv.Itoa(i)] = ctx.GetReg(i)
+        parameters["W"+strconv.Itoa(i)] = ctx.GetReg(i)
+    }
+    for i := 32; i < 64; i += 1 {
+        parameters["x"+strconv.Itoa(i-32)] = ctx.GetReg(i)
+        parameters["X"+strconv.Itoa(i-32)] = ctx.GetReg(i)
+    }
+    parameters["PC"] = ctx.GetPC()
+    parameters["pc"] = ctx.GetPC()
+    parameters["LR"] = ctx.GetLR()
+    parameters["lr"] = ctx.GetLR()
+    parameters["SP"] = ctx.GetSP()
+    parameters["sp"] = ctx.GetSP()
+    result, err := expr.Evaluate(parameters)
+    if err != nil {
+        return 0, fmt.Errorf("Evaluate Error: %v", err)
+    }
+    return uint64(result.(float64)), nil
 }

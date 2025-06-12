@@ -102,6 +102,7 @@ func main() {
 		brkAddressInfos []*controller.Address
 		doupdate bool
 		proxy bool
+		disablePkgChk bool
 	)
 	var brkFlag string
 	doupdate = false
@@ -113,6 +114,7 @@ func main() {
 	// flag.BoolVar(&doupdate, "update", false, "Update eDBG")
 	// flag.BoolVar(&proxy, "update-proxy", false, "Update eDBG With Proxy")
     flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
+	flag.BoolVar(&disablePkgChk, "disable-package-check", false, "Don't check package name")
     flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Disassemble Window")
 	flag.StringVar(&threadFilters, "t", "", "Thread name filters, e.g., [name1,name2]")
 	flag.StringVar(&inputfile, "i", "", "Input file saved from edbg. e.g. sample.edbg")
@@ -121,6 +123,7 @@ func main() {
 	flag.StringVar(&prefer, "prefer", "", "Preference. 'uprobe' for Uprobes and 'hardware' for Hardware breakpoints")
 	flag.StringVar(&outputfile, "o", "&&NotSetNotSetNotSetO=O", "Save your progress to specified file")
 	flag.Parse()
+	config.DisablePackageCheck = disablePkgChk
 	if doupdate {
 		Update(false)
 	}

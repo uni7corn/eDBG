@@ -9,6 +9,7 @@ import (
 	"eDBG/utils"
 	"golang.org/x/exp/slices"
 	"strconv"
+	"eDBG/config"
 )
 
 
@@ -48,11 +49,6 @@ func CreateProcess(packageName string) (*Process, error) {
 	return process, nil
 }
 
-// func (this *Process) UpToDate() {
-// 	// this.UpdatePidList()
-// 	this.UpdateMapsPid(this.WorkPid)
-// }
-
 func (this *Process) GetExecPath() error {
 	exec_path, err := os.Executable()
     if err != nil {
@@ -82,6 +78,9 @@ func (this *Process) UpdatePidList() {
 
 
 func (this *Process) checkPackageName() error {
+	if config.DisablePackageCheck {
+		return nil
+	}
 	packageinfos := utils.GetPackageInfos()
 	_, err := packageinfos.FindPackageByName(this.PackageName)
 	return err
@@ -122,7 +121,7 @@ func FindLibPathFromPackage(name string) []string {
 	SearchPath := []string{}
     content, err := utils.RunCommand("pm", "path", name)
     if err != nil {
-        panic(err)
+        return SearchPath
     }
     for _, line := range strings.Split(content, "\n") {
         parts := strings.Split(line, ":")

@@ -81,9 +81,9 @@
 - **Memory Examination** `examine/x`
 
   - Address: `x 0x12345678` (default 16 bytes)
-  - Register: `x X0` (access [X0] memory)
-  - Address/Register+Length: `x 0x12345678 128`
-  - Address/Register+Type: `x X0 ptr/int/str`
+  - Address+Length: `x 0x12345678 128`
+  - Address+Type: `x X0 ptr/int/str`
+  - Address can be expressions including register names. e.g. `x SP+128 X1+0x58`
 - **Exit** `quit/q`: Exit debugger (won't affect target process)
 - **Information** `info/i`
 
