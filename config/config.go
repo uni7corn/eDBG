@@ -22,3 +22,5 @@ var YELLOW = "\033[0;33m"
 var BLUE = "\033[0;34m"
 var CYAN = "\033[0;36m"
 var NC = "\033[0m"
+
+var DisablePackageCheck = false

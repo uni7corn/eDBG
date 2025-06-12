@@ -187,13 +187,9 @@ func (this *Client) executeCommand(line string) {
 			this.HandleHBreak(args, config.HW_BREAKPOINT_W)
 		case "step", "s":
 			if this.HandleStep() && this.HandleContinue() {
-				// <- this.Incoming
-				// this.OutputInfo()
 			}
 		case "next", "n":
 			if this.HandleNext() && this.HandleContinue() {
-				// <- this.Incoming
-				// this.OutputInfo()
 			}
 		case "examine", "x":
 			this.HandleMemory(args)
@@ -204,8 +200,6 @@ func (this *Client) executeCommand(line string) {
 			return
 		case "continue", "c":
 			if this.HandleContinue() {
-				// <- this.Incoming
-				// this.OutputInfo()
 			}
 		case "display", "disp":
 			this.HandleDisplay(args)
@@ -217,8 +211,6 @@ func (this *Client) executeCommand(line string) {
 			this.HandleInfo(args)
 		case "finish", "fi":
 			if this.HandleFinish() && this.HandleContinue() {
-				// <- this.Incoming
-				// this.OutputInfo()
 			}
 		case "return":
 			fmt.Println("Command return is not supported because eDBG cannot perform modification. Use finish or fi instead.")
@@ -236,8 +228,6 @@ func (this *Client) executeCommand(line string) {
 			this.HandleDelete(args)
 		case "until", "u":
 			if this.HandleUntil(args) && this.HandleContinue() {
-				// <- this.Incoming
-				// this.OutputInfo()
 			}
 		case "run", "r":
 			fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
@@ -458,23 +448,23 @@ func (this *Client) HandleList(args []string) {
 		return
 	}
 	if len(args) == 1 {
-		address, err := strconv.ParseUint(args[0], 0, 64)
+		address, err := utils.GetExprValue(args[0], this.Process.Context)
 		if err != nil {
-			fmt.Printf("Bad address: %v\nUsage: list\n       list <address>\n       list <address> <len>\n", err)
+			fmt.Println(err)
 			return
 		}
 		this.PrintDisassembleInfo(address, 10)
 		return
 	}
 	if len(args) >= 2 {
-		address, err := strconv.ParseUint(args[0], 0, 64)
+		address, err := utils.GetExprValue(args[0], this.Process.Context)
 		if err != nil {
-			fmt.Printf("Bad address: %v\nUsage: list\n       list <address>\n       list <address> <len>\n", err)
+			fmt.Println(err)
 			return
 		}
-	len, err := strconv.ParseUint(args[1], 0, 32)
+		len, err := utils.GetExprValue(args[1], this.Process.Context)
 		if err != nil {
-			fmt.Printf("Bad Length: %v\nUsage: list\n       list <address>\n       list <address> <len>\n", err)
+			fmt.Println(err)
 			return
 		}
 		this.PrintDisassembleInfo(address, int(len))
@@ -488,16 +478,16 @@ func (this *Client) HandleDisplay(args []string) {
 		return
 	}
 	info := &DisplayInfo{"", 0, true, 16}
-	address, err := strconv.ParseUint(args[0], 0, 64)
+	address, err := utils.GetExprValue(args[0], this.Process.Context)
 	if err != nil {
-		fmt.Printf("Bad address: %v\nUsage: display <address>\n       display <address> <len>\n       display <address> <len> <name>\n", err)
+		fmt.Println(err)
 		return
 	}
 	info.Address = address
 	if len(args) > 1 {
-		len, err := strconv.ParseUint(args[1], 0, 32)
+		len, err := utils.GetExprValue(args[1], this.Process.Context)
 		if err != nil {
-			fmt.Printf("Bad Length: %v\nUsage: display <address>\n       display <address> <len>\n       display <address> <len> <name>\n", err)
+			fmt.Println(err)
 			return
 		}
 		info.Len = int(len)
@@ -530,76 +520,73 @@ func (this *Client) HandleUndisplay(args []string) {
 }
 
 func (this *Client) ParseUserAddressToAbsolute(arg string) (uint64, error) {
-	if strings.Contains(arg, "+") {
-		lastIndex := strings.LastIndex(arg, "+")
-		libName := arg[:lastIndex]
-		offset_str := arg[lastIndex+1:]
-		offset, err := strconv.ParseUint(offset_str, 0, 64)
-		if err != nil {
-			return 0, fmt.Errorf("Bad address: %v", err)
-		}
-		if libName == "$" {
-			return this.Process.Context.PC+offset*4, nil
-		} else {
-			libInfo, err := controller.CreateLibrary(this.Process, libName)
+	offset, err := utils.GetExprValue(arg, this.Process.Context)
+	if err != nil {
+		if strings.Contains(arg, "+") {
+			lastIndex := strings.LastIndex(arg, "+")
+			libName := arg[:lastIndex]
+			offset_str := arg[lastIndex+1:]
+			offset, err := strconv.ParseUint(offset_str, 0, 64)
 			if err != nil {
-				return 0, err
+				return 0, fmt.Errorf("Bad address: %v", err)
 			}
-			address := controller.NewAddress(libInfo, offset)
-			return this.Process.GetAbsoluteAddress(address)
-		}
-	} else {
-		offset, err := strconv.ParseUint(arg, 0, 64)
-		// fmt.Printf("Try to set breakpoint at 0x%x\n", offset)
-		if err != nil {
-			return 0, fmt.Errorf("Bad address: %v", err)
-		}
-		if offset > 0x5000000000 {
-			return offset, nil
-		}
-		address := controller.NewAddress(this.Library, offset)
-		return this.Process.GetAbsoluteAddress(address)
+			if libName == "$" {
+				return this.Process.Context.PC+offset*4, nil
+			} else {
+				libInfo, err := controller.CreateLibrary(this.Process, libName)
+				if err != nil {
+					return 0, err
+				}
+				address := controller.NewAddress(libInfo, offset)
+				return this.Process.GetAbsoluteAddress(address)
+			}
+		} 
+		return 0, err
 	}
+	if offset > 0x5000000000 {
+		return offset, nil
+	}
+	address := controller.NewAddress(this.Library, offset)
+	return this.Process.GetAbsoluteAddress(address)
+	
 }
 
 
 func (this *Client) ParseUserAddress(arg string) (*controller.Address, error) {
-	if strings.Contains(arg, "+") {
-		lastIndex := strings.LastIndex(arg, "+")
-		libName := arg[:lastIndex]
-		offset_str := arg[lastIndex+1:]
-		offset, err := strconv.ParseUint(offset_str, 0, 64)
-		if err != nil {
-			return &controller.Address{}, fmt.Errorf("Bad address: %v", err)
-		}
-		if libName == "$" {
-			address, err := this.Process.ParseAddress(this.Process.Context.PC+offset*4)
+	offset, err := utils.GetExprValue(arg, this.Process.Context)
+	if err != nil {
+		if strings.Contains(arg, "+") {
+			lastIndex := strings.LastIndex(arg, "+")
+			libName := arg[:lastIndex]
+			offset_str := arg[lastIndex+1:]
+			offset, err := strconv.ParseUint(offset_str, 0, 64)
 			if err != nil {
 				return &controller.Address{}, fmt.Errorf("Bad address: %v", err)
 			}
-			return address, nil
-		} else {
-			libInfo, err := controller.CreateLibrary(this.Process, libName)
-			if err != nil {
-				return &controller.Address{}, err
+			if libName == "$" {
+				address, err := this.Process.ParseAddress(this.Process.Context.PC+offset*4)
+				if err != nil {
+					return &controller.Address{}, fmt.Errorf("Bad address: %v", err)
+				}
+				return address, nil
+			} else {
+				libInfo, err := controller.CreateLibrary(this.Process, libName)
+				if err != nil {
+					return &controller.Address{}, err
+				}
+				return controller.NewAddress(libInfo, offset), nil
 			}
-			return controller.NewAddress(libInfo, offset), nil
-		}
-	} else {
-		offset, err := strconv.ParseUint(arg, 0, 64)
-		// fmt.Printf("Try to set breakpoint at 0x%x\n", offset)
-		if err != nil {
-			return &controller.Address{}, fmt.Errorf("Bad address: %v", err)
-		}
-		address := controller.NewAddress(this.Library, offset)
-		if offset > 0x5000000000 {
-			address, err = this.Process.ParseAddress(offset)
-			if err != nil {
-				return &controller.Address{}, fmt.Errorf("Bad address: %v", err)
-			}
-		}
-		return address, nil
+		} 
+		return &controller.Address{}, fmt.Errorf("Bad address: %v", err)
 	}
+	address := controller.NewAddress(this.Library, offset)
+	if offset > 0x5000000000 {
+		address, err = this.Process.ParseAddress(offset)
+		if err != nil {
+			return &controller.Address{}, fmt.Errorf("Bad address: %v", err)
+		}
+	}
+	return address, nil
 }
 
 func (this *Client) HandleUntil(args []string) bool {
@@ -761,27 +748,10 @@ func (this *Client) HandleWrite(args []string) {
 		fmt.Println("Usage: write <address> <hexstring>")
 		return
 	}
-	
-	address, err := strconv.ParseUint(args[0], 0, 64)
+	address, err := utils.GetExprValue(args[0], this.Process.Context)
 	if err != nil {
-		if strings.HasPrefix(args[0], "X") {
-			regnum, err := strconv.ParseUint(args[0][1:], 0, 64)
-			if err != nil {
-				fmt.Printf("Bad Regnum: %v\n", err)
-				return
-			}
-			if regnum > 31 {
-				fmt.Printf("No such register\n")
-				return
-			}
-			address = this.Process.Context.GetReg(int(regnum)+32)
-
-		} else if args[0] == "SP" {
-			address = this.Process.Context.SP
-		} else {
-			fmt.Printf("Bad address: %v\n", err)
-			return
-		}
+		fmt.Println(err)
+		return
 	}
 	
 	data, err := utils.HexStringToBytes(args[1])
@@ -805,26 +775,10 @@ func (this *Client) HandleDump(args []string) {
 		fmt.Println("Usage: dump <address> <length> <filename>")
 		return
 	}
-	address, err := strconv.ParseUint(args[0], 0, 64)
+	address, err := utils.GetExprValue(args[0], this.Process.Context)
 	if err != nil {
-		if strings.HasPrefix(args[0], "X") {
-			regnum, err := strconv.ParseUint(args[0][1:], 0, 64)
-			if err != nil {
-				fmt.Printf("Bad Regnum: %v\n", err)
-				return
-			}
-			if regnum > 31 {
-				fmt.Printf("No such register\n")
-				return
-			}
-			address = this.Process.Context.GetReg(int(regnum)+32)
-
-		} else if args[0] == "SP" {
-			address = this.Process.Context.SP
-		} else {
-			fmt.Printf("Bad address: %v\n", err)
-			return
-		}
+		fmt.Println(err)
+		return
 	}
 	
 	length := 16
@@ -860,32 +814,16 @@ func (this *Client) HandleMemory(args []string) {
 		fmt.Println("Usage: x <address> <length/type>")
 		return
 	}
-	address, err := strconv.ParseUint(args[0], 0, 64)
+	address, err := utils.GetExprValue(args[0], this.Process.Context)
 	if err != nil {
-		if strings.HasPrefix(args[0], "X") || strings.HasPrefix(args[0], "x") {
-			regnum, err := strconv.ParseUint(args[0][1:], 0, 64)
-			if err != nil {
-				fmt.Printf("Bad Regnum: %v\n", err)
-				return
-			}
-			if regnum > 31 {
-				fmt.Printf("No such register\n")
-				return
-			}
-			address = this.Process.Context.GetReg(int(regnum)+32)
-
-		} else if args[0] == "SP" {
-			address = this.Process.Context.SP
-		} else {
-			fmt.Printf("Bad address: %v\n", err)
-			return
-		}
+		fmt.Println(err)
+		return
 	}
 	
 	length := 16
 	format := "hexdump"
 	if len(args) > 1 {
-		len, err := strconv.Atoi(args[1])
+		len, err := utils.GetExprValue(args[1], this.Process.Context)
 		if err != nil {
 			switch args[1] {
 			case "ptr":
@@ -910,15 +848,15 @@ func (this *Client) HandleMemory(args []string) {
 				format = "int"
 				length = 4
 			default:
-				fmt.Println("Invalid type or length")
+				fmt.Println("Invalid type or length: ", err)
 				return
 			}
 		} else {
-			if len < 0 {
+			if len < 0 || len > 0x100000{
 				fmt.Println("Invalid length")
 				return
 			}
-			length = len
+			length = int(len)
 		}
 	}
 

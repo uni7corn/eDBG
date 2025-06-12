@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/c-bata/go-prompt v0.2.6
+	github.com/casbin/govaluate v1.7.0
 	github.com/cilium/ebpf v0.17.3
 	github.com/gojue/ebpfmanager v0.4.6
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
