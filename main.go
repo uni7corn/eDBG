@@ -1,54 +1,56 @@
 package main
 
 import (
-    "eDBG/cli"
+	"eDBG/cli"
 	"eDBG/config"
-	"flag"
-	"os"
-	"strconv"
-	"syscall"
-    "fmt"
-    "os/signal"
-	"strings"
-    "eDBG/module"
-	"eDBG/utils"
 	"eDBG/controller"
+	"eDBG/event"
+	"eDBG/module"
+	"eDBG/utils"
 	"encoding/json"
-    "eDBG/event"
-	"github.com/inconshreveable/go-update"
+	"flag"
+	"fmt"
 	"net/http"
-    _ "github.com/shuLhan/go-bindata" // add for bindata in Makefile
+	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"syscall"
+
+	"github.com/inconshreveable/go-update"
+	_ "github.com/shuLhan/go-bindata" // add for bindata in Makefile
 )
+
 type UserBreakPoints struct {
-	LibName    string `json:"brklib"`
-	Offset 	   uint64 `json:"offset"`
-	Enable	   bool   `json:"enable"`
-} 
+	LibName string `json:"brklib"`
+	Offset  uint64 `json:"offset"`
+	Enable  bool   `json:"enable"`
+}
 
 var EdbgConfigVersion int
 
 type AppConfig struct {
-	ConfigVersion   int       `json:"ConfigVersion"`
-    PackageName     string    `json:"packagename"`
-    LibName 		string    `json:"libname"`
-	Hidereg			bool 	  `json:"hidereg"`
-	Hidedis			bool	  `json:"hidedis"`
-	BreakPoints	[]UserBreakPoints `json:"brk"`
-	TNames      []string      `json:"tname"`
+	ConfigVersion int               `json:"ConfigVersion"`
+	PackageName   string            `json:"packagename"`
+	LibName       string            `json:"libname"`
+	Hidereg       bool              `json:"hidereg"`
+	Hidedis       bool              `json:"hidedis"`
+	BreakPoints   []UserBreakPoints `json:"brk"`
+	TNames        []string          `json:"tname"`
 }
 
 func doUpdate(url string) error {
 	// 在 adb shell 里似乎无法联网（悲
 	resp, err := http.Get(url)
-    if err != nil {
-        return err
-    }
-    defer resp.Body.Close()
-    err = update.Apply(resp.Body, update.Options{})
-    if err != nil {
-        return err
-    }
-    return nil
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	err = update.Apply(resp.Body, update.Options{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 func Update(proxy bool) {
 	fmt.Println("Updating...")
@@ -66,56 +68,58 @@ func Update(proxy bool) {
 	os.Exit(0)
 }
 func SaveConfig(path string, cfg AppConfig) error {
-    jsonData, err := json.MarshalIndent(cfg, "", "  ")
-    if err != nil {
-        return err
-    }
-    return os.WriteFile(path, jsonData, 0644)
+	jsonData, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, jsonData, 0644)
 }
 
 func LoadConfig(path string) (AppConfig, error) {
-    var cfg AppConfig
-    jsonData, err := os.ReadFile(path)
-    if err != nil {
-        return cfg, err
-    }
-    err = json.Unmarshal(jsonData, &cfg)
-    return cfg, err
+	var cfg AppConfig
+	jsonData, err := os.ReadFile(path)
+	if err != nil {
+		return cfg, err
+	}
+	err = json.Unmarshal(jsonData, &cfg)
+	return cfg, err
 }
 
 func main() {
 	EdbgConfigVersion = 1
 	stopper := make(chan os.Signal, 1)
-    signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	workedlib := make(map[string]*controller.LibraryInfo)
 	var (
-		inputfile string
-		outputfile string
-		packageName string
-		libName string
-        hiddis bool
-        hidreg bool
-		save  bool
-		prefer string
-		threadFilters string
-		disableColor bool
+		inputfile       string
+		outputfile      string
+		packageName     string
+		libName         string
+		hiddis          bool
+		hidreg          bool
+		save            bool
+		prefer          string
+		threadFilters   string
+		disableColor    bool
 		brkAddressInfos []*controller.Address
-		doupdate bool
-		proxy bool
-		disablePkgChk bool
+		doupdate        bool
+		proxy           bool
+		disablePkgChk   bool
+		vbkFlag         string
 	)
 	var brkFlag string
 	doupdate = false
 	proxy = false
 	flag.StringVar(&brkFlag, "b", "", "Breakpoint addresses in hex format, e.g., [0x1234,0x5678]")
+	flag.StringVar(&vbkFlag, "vb", "", "Breakpoint virtual addresses (from IDA, etc.) in hex format, e.g., [0x1234,0x5678]")
 	flag.StringVar(&packageName, "p", "", "Target package name")
 	flag.StringVar(&libName, "l", "", "Target library name")
 	// 无法运行的功能，先放着
 	// flag.BoolVar(&doupdate, "update", false, "Update eDBG")
 	// flag.BoolVar(&proxy, "update-proxy", false, "Update eDBG With Proxy")
-    flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
+	flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
 	flag.BoolVar(&disablePkgChk, "disable-package-check", false, "Don't check package name")
-    flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Disassemble Window")
+	flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Disassemble Window")
 	flag.StringVar(&threadFilters, "t", "", "Thread name filters, e.g., [name1,name2]")
 	flag.StringVar(&inputfile, "i", "", "Input file saved from edbg. e.g. sample.edbg")
 	flag.BoolVar(&save, "s", false, "Save your progress to input file")
@@ -124,6 +128,12 @@ func main() {
 	flag.StringVar(&outputfile, "o", "&&NotSetNotSetNotSetO=O", "Save your progress to specified file")
 	flag.Parse()
 	config.DisablePackageCheck = disablePkgChk
+
+	if brkFlag != "" && vbkFlag != "" {
+		fmt.Println("Error: Cannot use both -b (file offset) and -vb (virtual offset) flags simultaneously.")
+		os.Exit(1)
+	}
+
 	if doupdate {
 		Update(false)
 	}
@@ -199,17 +209,41 @@ func main() {
 		config.Preference = config.ALL_UPROBE
 		config.Available_HW = 0
 	}
-    eventListener := event.CreateEventListener(process)
-    brkManager := module.CreateBreakPointManager(eventListener, btfFile, process)
-    client := cli.CreateClient(process, library, brkManager, &cli.UserConfig{
-        Registers: !hidreg,
-        Disasm: !hiddis,
-    })
-    if inputfile == "" {
-		brkAddrs, err := ParseBreakPoints(brkFlag)
-		if err != nil {
-			fmt.Println("Create Breakpoints Failed: ", err)
-			os.Exit(1)
+	eventListener := event.CreateEventListener(process)
+	brkManager := module.CreateBreakPointManager(eventListener, btfFile, process)
+	client := cli.CreateClient(process, library, brkManager, &cli.UserConfig{
+		Registers: !hidreg,
+		Disasm:    !hiddis,
+	})
+	if inputfile == "" {
+		var brkAddrs []uint64
+		var err error
+
+		// 修改：根据 -b 或 -vb 处理断点
+		if vbkFlag != "" {
+			// 解析虚拟地址
+			virtualAddrs, err := ParseBreakPoints(vbkFlag)
+			if err != nil {
+				fmt.Println("Parsing virtual addresses failed: ", err)
+				os.Exit(1)
+			}
+			// 将虚拟地址转换为文件偏移
+			for _, vaddr := range virtualAddrs {
+				fmt.Printf("Converting virtual address 0x%x ", vaddr)
+				fileOffset, err := utils.ConvertVirtualOffsetToFileOffset(library.LibPath, vaddr)
+				if err != nil {
+					fmt.Printf("Failed to convert virtual address 0x%x: %v\n", vaddr, err)
+					os.Exit(1)
+				}
+				fmt.Printf("to file offset: 0x%x\n", fileOffset)
+				brkAddrs = append(brkAddrs, fileOffset)
+			}
+		} else { // 包含 brkFlag != "" 和两者都为空的情况
+			brkAddrs, err = ParseBreakPoints(brkFlag)
+			if err != nil {
+				fmt.Println("Create Breakpoints Failed: ", err)
+				os.Exit(1)
+			}
 		}
 
 		tNames, err := ParseThreadNames(threadFilters)
@@ -225,7 +259,7 @@ func main() {
 		for _, offset := range brkAddrs {
 			brkAddressInfos = append(brkAddressInfos, controller.NewAddress(library, offset))
 		}
-	}  else {
+	} else {
 		Config, _ := LoadConfig(inputfile)
 		for _, name := range Config.TNames {
 			client.AddThreadFilterName(name)
@@ -252,9 +286,9 @@ func main() {
 			}
 		}
 	}
-	
+
 	eventListener.SetupClient(client)
-    
+
 	err = brkManager.Start(brkAddressInfos)
 	if err != nil {
 		fmt.Println("Module start Failed: ", err)
@@ -263,11 +297,11 @@ func main() {
 	}
 	fmt.Printf("Working on %s in %s. Press Ctrl+C to quit\n", libName, packageName)
 
-    client.Run()
+	client.Run()
 	eventListener.Run()
-    <-stopper
+	<-stopper
 	fmt.Println("Quiting eDBG...")
-    process.Continue()
+	process.Continue()
 	// _ = brkManager.Stop()
 	if save {
 		if inputfile == "" {
@@ -279,10 +313,10 @@ func main() {
 	if outputfile != "&&NotSetNotSetNotSetO=O" {
 		cfg := AppConfig{
 			ConfigVersion: EdbgConfigVersion,
-			PackageName: packageName,
-			LibName: libName,
-			Hidereg: hidreg,
-			Hidedis: hiddis,
+			PackageName:   packageName,
+			LibName:       libName,
+			Hidereg:       hidreg,
+			Hidedis:       hiddis,
 		}
 
 		for _, brk := range brkManager.BreakPoints {
@@ -291,7 +325,7 @@ func main() {
 			}
 			cfg.BreakPoints = append(cfg.BreakPoints, UserBreakPoints{
 				LibName: brk.Addr.LibInfo.LibName,
-				Offset: brk.Addr.Offset,
+				Offset:  brk.Addr.Offset,
 				Enable:  brk.Enable,
 			})
 		}
@@ -309,7 +343,6 @@ func main() {
 		fmt.Println("Progress saved to file: ", outputfile)
 	}
 }
-
 
 func ParseBreakPoints(brkFlag string) ([]uint64, error) {
 	trimmed := strings.Trim(brkFlag, "[]")
