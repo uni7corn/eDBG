@@ -24,3 +24,4 @@ var CYAN = "\033[0;36m"
 var NC = "\033[0m"
 
 var DisablePackageCheck = false
+var SHOW_VERTUAL = false

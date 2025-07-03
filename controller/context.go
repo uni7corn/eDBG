@@ -1,17 +1,24 @@
 package controller
 
 import (
-	"fmt"
-	"eDBG/utils"
 	"eDBG/config"
+	"eDBG/utils"
+	"fmt"
 )
 
 type ProcessContext struct {
-	Regs []uint64
-	LR uint64
-	PC uint64
-	SP uint64
+	Regs   []uint64
+	LR     uint64
+	PC     uint64
+	SP     uint64
 	Pstate uint64
+}
+
+func AssembleRegisters(p *ProcessContext) []uint64 {
+	regs := make([]uint64, 0, 33)
+	regs = append(regs, p.Regs...)
+	regs = append(regs, p.LR, p.SP, p.PC)
+	return regs
 }
 
 func (this *ProcessContext) GetReg(key int) uint64 {
@@ -51,9 +58,8 @@ func (this *ProcessContext) GetPstate() uint64 {
 	return this.Pstate
 }
 
-
 func (this *Process) PrintContext() {
-	for i, reg := range(this.Context.Regs) {
+	for i, reg := range this.Context.Regs {
 		tmpreg := reg
 		if (tmpreg >> 96) == 0xB400 {
 			tmpreg -= 0xB400000000000000
@@ -87,4 +93,3 @@ func (this *Process) PrintContext() {
 	}
 	// fmt.Println("─────────────────────────────────────────────────────────────────────────────────────────")
 }
-

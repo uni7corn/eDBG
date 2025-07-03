@@ -1,6 +1,5 @@
 <div align="center">
   <img src="logo.png"/>
-
   [![GitHub Release](https://img.shields.io/github/v/release/ShinoLeah/eDBG?style=flat-square)](https://github.com/ShinoLeah/eDBG/releases)
   [![License](https://img.shields.io/github/license/ShinoLeah/eDBG?style=flat-square)](LICENSE)
   [![Platform](https://img.shields.io/badge/platform-Android%20ARM64-red.svg?style=flat-square)](https://www.android.com/)
@@ -64,6 +63,7 @@
 
 - 由于本项目使用基于文件+偏移的断点注册机制，在调试系统库（`libc.so`、`libart.so`）时可能会比较卡顿。
 - **重要**：本项目不能随时暂停被调试程序，因此**必须用 -b 启动选项在可用位置先断下程序才能进行后续调试**。
+- 由于 eDBG 不直接 trace 程序，**只有断点触发、程序停止后命令才可正常被执行，在其余时间执行命令可能导致未知后果**。
 - 该项目可以在目标程序运行之前被运行，因此不支持在启动时指定线程 id。
 - 最多支持 20 个启用的断点。
 
@@ -71,12 +71,13 @@
 
 - **断点** `break / b`
   - 偏移：`b 0x1234`（相对初始动态库的偏移）
-  - 内存地址：`b 0x6e9bfe214c`（需要当前程序正在运行）
+  - 内存地址：`b 0x6e9bfe214c`（需要当前程序正在运行，虚拟偏移与文件偏移不一致时可能出错）
   - 库名+偏移：`b libraryname.so+0x1234`
   - 当前偏移：`b $+1`，（当前位置+**指令条数**）
   - 启用断点：`enable id`，启用指定断点（你可以在 `info` 中查看断点信息）
   - 禁用断点：`disable id`，禁用指定断点
   - 删除断点：`delete id`，删除第 id 号断点
+- **虚拟偏移断点** `vbreak / vb` 设置虚拟偏移断点（虚拟偏移与 IDA 中显示的偏移相同，**除此功能外，默认均为文件偏移**）
 - **继续运行** `continue / c`：继续执行至下一断点
 - **单步调试**
   - `step / s` 单步步入（进入函数调用）
@@ -86,12 +87,14 @@
   - 地址+长度：`x 0x12345678 128`
   - 地址+类型：`x X0 ptr/str/int`
   - 地址和长度可以是任意表达式，允许使用寄存器名称作为变量如`x SP+128 X1+0x58`
+- **查看调用栈** `backtrace / bt` 或者 `backtrace1 / bt1`  
 - **退出** `quit / q`：退出**调试器**（不会影响程序运行）
 - **查看信息** `info / i`
 
   - `info b/break`：列出当前所有断点（`[+]`=已启用，`[-]`=未启用）
   - `info register/reg/r`：查看所有寄存器信息。
   - `info thread/t`：列出当前所有线程和已设定的线程过滤器。
+  - `info file/f`：打印指定文件的地址和偏移。
 - **重复上一条指令**：直接回车
 
 更多命令见“进阶使用”
@@ -111,6 +114,7 @@
 | -prefer                | uprobe 或 hardware，指定在单步调试中使用的断点，默认混用     |
 | -disable-color         | 禁用彩色输出                                                 |
 | -disable-package-check | 禁用包名检查，此时包名可以是进程名，库名必须使用绝对路径。**测试功能** |
+| -show-vertual          | 启用默认虚拟地址显示，显示偏移与 ida 相同，但可能导致 break 等命令偏移对不上。 |
 
 更多的可用命令：
 
@@ -172,12 +176,14 @@
    export GO111MODULE=on
    ```
 
-2. 编译
+2. 下载 NDK 并解压，修改 build_arm.sh 中的 NDK_ROOT
+
+3. 编译
 
    ```shell
    git clone --recursive https://github.com/ShinoLeah/eDBG.git
    ./build_env.sh
-   make
+   ./build_arm.sh
    ```
 
 ## 💭 实现原理

@@ -1,11 +1,13 @@
 package utils
 
 import (
-	"fmt"
-	"golang.org/x/sys/unix"
-	"strconv"
 	"encoding/binary"
+	"fmt"
+	"io/ioutil"
+	"strconv"
 	"strings"
+
+	"golang.org/x/sys/unix"
 	// "unsafe"
 )
 
@@ -29,24 +31,48 @@ func ReadProcessMemory(pid uint32, remoteAddr uintptr, buffer []byte) (int, erro
 	return n, nil
 }
 
-func WriteProcessMemory(pid uint32, remoteAddr uintptr, data []byte) (int, error) {
-    localIov := []unix.Iovec{
-        {Base: &data[0], Len: uint64(len(data))}, 
-    }
-    remoteIov := []unix.RemoteIovec{
-        {Base: remoteAddr, Len: int(len(data))}, 
-    }
-    n, err := unix.ProcessVMWritev(
-        int(pid),
-        localIov,
-        remoteIov,
-        0, // flags
-    )
+func ReadProcessMemoryRobust(pid uint32, startAddr uintptr, totalSize int) ([]byte, error) {
+	fullBuffer := make([]byte, totalSize)
+	var totalReadBytes int
+	const chunkSize = 4096
 
-    if err != nil {
-        return 0, fmt.Errorf("WriteProcessMemory failed: %v", err)
-    }
-    return n, nil
+	for totalReadBytes < totalSize {
+		currentAddr := startAddr + uintptr(totalReadBytes)
+		bytesToRead := chunkSize
+		if totalReadBytes+bytesToRead > totalSize {
+			bytesToRead = totalSize - totalReadBytes
+		}
+		chunkBuffer := make([]byte, bytesToRead)
+		n, err := ReadProcessMemory(pid, currentAddr, chunkBuffer)
+
+		if err != nil {
+		} else if n > 0 {
+			copy(fullBuffer[totalReadBytes:], chunkBuffer[:n])
+		}
+		totalReadBytes += bytesToRead
+	}
+
+	return fullBuffer, nil
+}
+
+func WriteProcessMemory(pid uint32, remoteAddr uintptr, data []byte) (int, error) {
+	localIov := []unix.Iovec{
+		{Base: &data[0], Len: uint64(len(data))},
+	}
+	remoteIov := []unix.RemoteIovec{
+		{Base: remoteAddr, Len: int(len(data))},
+	}
+	n, err := unix.ProcessVMWritev(
+		int(pid),
+		localIov,
+		remoteIov,
+		0, // flags
+	)
+
+	if err != nil {
+		return 0, fmt.Errorf("WriteProcessMemory failed: %v", err)
+	}
+	return n, nil
 }
 
 func TryRead(pid uint32, remoteAddr uintptr) (bool, string) {
@@ -93,4 +119,13 @@ func TryRead(pid uint32, remoteAddr uintptr) (bool, string) {
 		fmt.Fprintf(outbuf, "0x%X", binary.LittleEndian.Uint64(buf))
 	}
 	return true, outbuf.String()
+}
+
+func ReadMapsByPid(pid uint32) (string, error) {
+	filename := fmt.Sprintf("/proc/%d/maps", pid)
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
 }
