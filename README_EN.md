@@ -61,7 +61,8 @@
 ## ⚠️ Notes
 
 - Debugging system libraries (e.g., `libc.so`, `libart.so`) may cause lag due to file+offset mechanism
-- Program pause isn't supported without active breakpoints
+- Program pause isn't supported without active breakpoints]
+- **Command works only when program is suspended**  
 - Thread ID specification during startup isn't supported
 - Maximum 20 active breakpoints
 
@@ -73,6 +74,7 @@
   - Memory: `b 0x6e9bfe214c` (requires running process)
   - Library+Offset: `b library.so+0x1234`
   - Relative: `b $+1` (current position +1 instruction)
+- **Vertual Breakpoints** `vbreak/vb` Set Breakpoints on vertual offsets
 - **Continue** `continue/c`: Resume execution
 - **Stepping**
 
@@ -110,12 +112,14 @@ More commands in "Advanced Usage".
    export GOPROXY=https://goproxy.cn,direct
    export GO111MODULE=on
 
-2. **Build**
+2. **NDK Setup** Download NDK and modify NDK_ROOT in build_arm.sh
+
+3. **Build**
 
    ```shell
    git clone --recursive https://github.com/ShinoLeah/eDBG.git
    ./build_env.sh
-   make
+   ./build_arm.sh
    ```
 
 ## 🧑‍💻 Advanced Usage
@@ -132,6 +136,7 @@ More options:
 | -hide-disassemble |     Disable assembly info on breakpoints      |
 |      -prefer      |              uprobe or hardware               |
 |  -disable-color   |            disable colorful output            |
+|   -show-vertual   |        show vertual address by default        |
 
 More commands:
 
@@ -158,6 +163,8 @@ More commands:
 - **Write Memory** `write address hexstring` Target address must be writable
 
 - **Memory Dump** `dump address length filename`
+
+- **Backtrace** `backtrace/bt` or `backtrace1/bt1`
 
 - **Code Listing** `list/l/disassemble/dis`
 

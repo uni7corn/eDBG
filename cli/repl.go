@@ -220,7 +220,7 @@ func (this *Client) executeCommand(line string) {
 		fmt.Println("Command return is not supported because eDBG cannot perform modification. Use finish or fi instead.")
 	case "backtrace1", "bt1":
 		this.HandleBacktraceByFP(args)
-	case "backtrace2", "bt2":
+	case "backtrace2", "bt2", "backtrace", "bt":
 		this.HandleBacktraceByUnwind(args)
 	case "jump", "j":
 		fmt.Println("Command jump is not supported because eDBG cannot perform modification.")
@@ -279,7 +279,7 @@ func (this *Client) completer(d prompt.Document) []prompt.Suggest {
 		{Text: "finish", Description: "Execute until function return [fi]"},
 		{Text: "write", Description: "Write memory"},
 		{Text: "backtrace1", Description: "Show the current stack frame (call stack) [bt1]"},
-		{Text: "backtrace2", Description: "Show the current stack frame (call stack) [bt2]"},
+		{Text: "backtrace", Description: "Show the current stack frame (call stack) [bt]"},
 	}
 	return prompt.FilterHasPrefix(s, d.GetWordBeforeCursor(), true)
 }
@@ -491,7 +491,7 @@ func (this *Client) PrintThreadFilters() {
 
 func (this *Client) PrintFileInfo() {
 	// 1. 获取目标文件的完整路径
-	targetPath := this.Library.LibPath
+	targetPath := this.Library.RealFilePath
 	if targetPath == "" {
 		fmt.Println("错误：未指定要调试的主要库或可执行文件。")
 		return
@@ -501,7 +501,7 @@ func (this *Client) PrintFileInfo() {
 	pid := this.Process.WorkPid
 	mapsContent, err := utils.ReadMapsByPid(pid)
 	if err != nil {
-		fmt.Printf("为 PID %d 读取进程内存映射失败: %v\n", pid, err)
+		fmt.Printf("Failed to read maps for PID %d: %v\n", pid, err)
 		return
 	}
 
@@ -545,7 +545,7 @@ func (this *Client) PrintFileInfo() {
 
 	// 5. 如果找到了文件，则计算并打印信息
 	if !found {
-		fmt.Printf("在进程内存中找不到文件 '%s' 的映射信息。\n", targetPath)
+		fmt.Printf("Could not find file '%s' in memory.\n", targetPath)
 		return
 	}
 
@@ -555,6 +555,10 @@ func (this *Client) PrintFileInfo() {
 	// --- 格式化输出 (您可以方便地在此处删减内容) ---
 	fmt.Printf("info file '%s' :\n", targetPath)
 	fmt.Println(strings.Repeat("-", 50))
+	if this.Library.NonElfOffset != 0 {
+		fmt.Printf("  %-12s: 0x%x\n", "Library offset in file", this.Library.NonElfOffset)
+	}
+	
 	fmt.Printf("  %-12s: 0x%x\n", "Base Address", minAddr)
 	fmt.Printf("  %-12s: 0x%x\n", "End Address", maxAddr)
 	fmt.Printf("  %-12s: 0x%x\n", "Total Size", size)
@@ -840,7 +844,7 @@ func (this *Client) HandleBreak(args []string) {
 func (this *Client) HandleVBreak(args []string) {
 	if len(args) == 0 {
 
-		fmt.Println("Usage: vbreak / vb virtual_address>")
+		fmt.Println("Usage: vbreak / vb <virtual_address>")
 		return
 	}
 

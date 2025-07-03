@@ -181,7 +181,7 @@ func (this *Process) GetSymbol(address uint64) string {
 
 	displayOffset := addressInfo.Offset
 
-	if addressInfo.LibInfo.RealFilePath != "" {
+	if addressInfo.LibInfo.RealFilePath != "" && config.SHOW_VERTUAL {
 		convertedOffset, convErr := utils.ConvertFileOffsetToVirtualOffset(addressInfo.LibInfo.RealFilePath, addressInfo.Offset)
 
 		if convErr == nil {

@@ -106,6 +106,7 @@ func main() {
 		proxy           bool
 		disablePkgChk   bool
 		vbkFlag         string
+		// vertual			bool
 	)
 	var brkFlag string
 	doupdate = false
@@ -120,6 +121,7 @@ func main() {
 	flag.BoolVar(&hidreg, "hide-register", false, "Hide Register Window")
 	flag.BoolVar(&disablePkgChk, "disable-package-check", false, "Don't check package name")
 	flag.BoolVar(&hiddis, "hide-disassemble", false, "Hide Disassemble Window")
+	flag.BoolVar(&config.SHOW_VERTUAL, "show-vertual", false, "Show vertual address by default")
 	flag.StringVar(&threadFilters, "t", "", "Thread name filters, e.g., [name1,name2]")
 	flag.StringVar(&inputfile, "i", "", "Input file saved from edbg. e.g. sample.edbg")
 	flag.BoolVar(&save, "s", false, "Save your progress to input file")

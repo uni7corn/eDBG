@@ -1,8 +1,6 @@
 module eDBG
 
-go 1.23.0
-
-toolchain go1.24.4
+go 1.18
 
 require (
 	github.com/c-bata/go-prompt v0.2.6

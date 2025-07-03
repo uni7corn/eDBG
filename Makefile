@@ -1,9 +1,10 @@
-CMD_CLANG ?= $(shell brew --prefix llvm)/bin/clang
+# CMD_CLANG ?= $(shell brew --prefix llvm)/bin/clang
+CMD_CLANG ?= clang
 CMD_GO ?= go
 CMD_RM ?= rm
 # bcc-tools 包含 bpftool
-CMD_BPFTOOL ?= docker run --rm -v $(CURDIR):/src -w /src bpftool
-# CMD_BPFTOOL ?= bpftool
+# CMD_BPFTOOL ?= docker run --rm -v $(CURDIR):/src -w /src bpftool
+CMD_BPFTOOL ?= ./bpftool
 BUILD_PATH ?= ./build
 
 DEBUG_PRINT ?=
@@ -20,8 +21,8 @@ BUILD_TAGS := -tags forarm
 TARGET_ARCH = arm
 endif
 
-CC=/opt/homebrew/Caskroom/android-ndk/28b/AndroidNDK13356709.app/Contents/NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android29-clang
-CXX=/opt/homebrew/Caskroom/android-ndk/28b/AndroidNDK13356709.app/Contents/NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android29-clang++
+CC=aarch64-linux-android29-clang
+CXX=aarch64-linux-android29-clang++
 
 
 
@@ -57,11 +58,8 @@ assets:
 
 .PHONY: genbtf
 genbtf:
-	$(CMD_BPFTOOL) gen min_core_btf assets/rock5b-5.10-f9d1b1529-arm64.btf assets/rock5b-5.10-arm64_min.btf assets/ebpf_module.o
-	$(CMD_BPFTOOL) gen min_core_btf assets/a12-5.10-arm64.btf assets/a12-5.10-arm64_min.btf assets/ebpf_module.o
-# genbtf:
-# 	cd assets && $(CMD_BPFTOOL) gen min_core_btf rock5b-5.10-f9d1b1529-arm64.btf rock5b-5.10-arm64_min.btf ebpf_module.o
-# 	cd assets && $(CMD_BPFTOOL) gen min_core_btf a12-5.10-arm64.btf a12-5.10-arm64_min.btf ebpf_module.o
+	cd assets && $(CMD_BPFTOOL) gen min_core_btf rock5b-5.10-f9d1b1529-arm64.btf rock5b-5.10-arm64_min.btf ebpf_module.o
+	cd assets && $(CMD_BPFTOOL) gen min_core_btf a12-5.10-arm64.btf a12-5.10-arm64_min.btf ebpf_module.o
 
 .PHONY: build
 build:
