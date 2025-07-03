@@ -2,13 +2,14 @@ package controller
 
 import (
 	"debug/elf"
+	"eDBG/config"
+	"eDBG/utils"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"eDBG/config"
 )
 
 // var DoneSymbol []*CachedLibInfo
@@ -116,7 +117,7 @@ func (this *Process) ExportSymbols(libbase uint64, libpath string, liboffset uin
 			}
 
 			symEntry := symData[symIdx*uint32(symEntrySize):]
-			nameOffset := binary.LittleEndian.Uint32(symEntry[0:4]) 
+			nameOffset := binary.LittleEndian.Uint32(symEntry[0:4])
 
 			if int(nameOffset) >= len(strdata) {
 				continue
@@ -130,7 +131,7 @@ func (this *Process) ExportSymbols(libbase uint64, libpath string, liboffset uin
 
 			// 计算PLT条目地址
 			// GOT偏移公式: (offset - gotplt.Addr) / 8 - 3
-			pltIndex := (offset - gotplt.Addr)/8 - 3
+			pltIndex := (offset-gotplt.Addr)/8 - 3
 
 			pltAddr := plt.Addr + 32 + pltIndex*16 // PLT[0]占16字节
 
@@ -159,23 +160,34 @@ func (this *Process) GetSymbol(address uint64) string {
 	if sym, ok := this.Symbols[address]; ok {
 		return fmt.Sprintf("%s<%s>%s", config.GREEN, sym, config.NC)
 	}
+
 	addressInfo, err := this.ParseAddress(address)
-	if err == nil {
-		if addressInfo.IsAnouymous() {
-			return ""
-		}
-		if addressInfo.LibInfo.SymbolExtracted == true {
-			return fmt.Sprintf("%s<%s+%x>%s", config.GREEN, addressInfo.LibInfo.LibName, addressInfo.Offset, config.NC)
-		}
-		err := this.ExportSymbols(address-addressInfo.Offset, addressInfo.LibInfo.RealFilePath, addressInfo.LibInfo.NonElfOffset)
-		if err != nil {
-			// fmt.Printf("WARNING: Cannot get symbols from %s\n", addressInfo.LibInfo.RealFilePath)
-		}
+	if err != nil {
+		return ""
+	}
+
+	if addressInfo.IsAnouymous() {
+		return ""
+	}
+
+	if !addressInfo.LibInfo.SymbolExtracted {
+		_ = this.ExportSymbols(address-addressInfo.Offset, addressInfo.LibInfo.RealFilePath, addressInfo.LibInfo.NonElfOffset)
 		addressInfo.LibInfo.SymbolExtracted = true
+
 		if sym, ok := this.Symbols[address]; ok {
 			return fmt.Sprintf("%s<%s>%s", config.GREEN, sym, config.NC)
 		}
-		return fmt.Sprintf("%s<%s+%x>%s", config.GREEN, addressInfo.LibInfo.LibName, addressInfo.Offset, config.NC)
 	}
-	return ""
+
+	displayOffset := addressInfo.Offset
+
+	if addressInfo.LibInfo.RealFilePath != "" {
+		convertedOffset, convErr := utils.ConvertFileOffsetToVirtualOffset(addressInfo.LibInfo.RealFilePath, addressInfo.Offset)
+
+		if convErr == nil {
+			displayOffset = convertedOffset
+		}
+	}
+
+	return fmt.Sprintf("%s<%s+0x%x>%s", config.GREEN, addressInfo.LibInfo.LibName, displayOffset, config.NC)
 }
