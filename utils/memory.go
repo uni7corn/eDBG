@@ -12,6 +12,7 @@ import (
 )
 
 func ReadProcessMemory(pid uint32, remoteAddr uintptr, buffer []byte) (int, error) {
+	remoteAddr &= 0x00FFFFFFFFFFFFFF;
 	localIov := []unix.Iovec{
 		{Base: &buffer[0], Len: uint64(len(buffer))},
 	}
@@ -26,7 +27,7 @@ func ReadProcessMemory(pid uint32, remoteAddr uintptr, buffer []byte) (int, erro
 		0, // flags
 	)
 	if err != nil {
-		return 0, fmt.Errorf("ReadMemory failed: %v", err)
+		return 0, fmt.Errorf("ReadMemory %x failed: %v", remoteAddr, err)
 	}
 	return n, nil
 }
@@ -56,6 +57,7 @@ func ReadProcessMemoryRobust(pid uint32, startAddr uintptr, totalSize int) ([]by
 }
 
 func WriteProcessMemory(pid uint32, remoteAddr uintptr, data []byte) (int, error) {
+	remoteAddr &= 0x00FFFFFFFFFFFFFF;
 	localIov := []unix.Iovec{
 		{Base: &data[0], Len: uint64(len(data))},
 	}

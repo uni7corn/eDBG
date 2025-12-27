@@ -176,7 +176,9 @@ func (this *BreakPointManager) SetupProbe() error {
 	this.Running = true
 	return nil
 }
-
+func (this *BreakPointManager) Init() error {
+	return this.ProbeHandler.SetupManagerOptions()
+}
 func (this *BreakPointManager) Start(addresss []*controller.Address) error {
 	for _, addr := range addresss {
 		err := this.CreateBreakPoint(addr, true)
@@ -184,10 +186,6 @@ func (this *BreakPointManager) Start(addresss []*controller.Address) error {
 			fmt.Printf("Create Breakpoints Failed: %v, skipped.\n", err)
 			continue
 		}
-	}
-	err := this.ProbeHandler.SetupManagerOptions()
-	if err != nil {
-		return err
 	}
 	return this.SetupProbe()
 }

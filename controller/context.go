@@ -21,9 +21,12 @@ func AssembleRegisters(p *ProcessContext) []uint64 {
 	return regs
 }
 
-func (this *ProcessContext) GetReg(key int) uint64 {
+func (this *ProcessContext) GetReg(key int) uint64 {	
 	// W系寄存器
 	if key <= 29 {
+		if len(this.Regs) <= key {
+			return 0
+		}
 		return this.Regs[key] & 0xFFFFFFFF
 	}
 	if key == 30 {
@@ -34,6 +37,9 @@ func (this *ProcessContext) GetReg(key int) uint64 {
 	}
 	key -= 32 // X系寄存器
 	if key <= 29 {
+		if len(this.Regs) <= key {
+			return 0
+		}
 		return this.Regs[key]
 	}
 	if key == 30 {

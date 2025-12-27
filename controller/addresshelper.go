@@ -152,6 +152,7 @@ func (this *ProcMaps) ParseAbsoluteAddress(process *Process, address uint64) (*A
 				res := &Address{
 					LibInfo: &LibraryInfo{
 						LibName: seg.libName,
+						LibPath: seg.libPath,
 						Process: process,
 					},
 					Offset:     address - seg.baseAddr + seg.off,

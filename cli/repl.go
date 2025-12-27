@@ -83,7 +83,6 @@ func (this *Client) Run() {
 }
 
 func (this *Client) OutputInfo() {
-	// fmt.Println("?")
 	if this.Config.Registers {
 		fmt.Print(config.BLUE)
 		fmt.Println("──────────────────────────────────────[ REGISTERS ]──────────────────────────────────────")
@@ -202,7 +201,7 @@ func (this *Client) executeCommand(line string) {
 	case "quit", "q":
 		this.CleanUp()
 		return
-	case "continue", "c":
+	case "continue", "c", "run", "r":
 		if this.HandleContinue() {
 		}
 	case "display", "disp":
@@ -235,8 +234,8 @@ func (this *Client) executeCommand(line string) {
 	case "until", "u":
 		if this.HandleUntil(args) && this.HandleContinue() {
 		}
-	case "run", "r":
-		fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
+	// case "run", "r":
+	// 	fmt.Println("eDBG DO NOT execute programs. Please run it manually.")
 	case "set":
 		this.HandleSet(args)
 	case "write", "w":
@@ -885,7 +884,9 @@ func (this *Client) HandleContinue() bool {
 		fmt.Println("Possible reasons:\n\n1. Some instructions do not support uprobe. Try setting breakpoints on other instructions or use until to skip the current instruction.\n2. Breakpoints with invalid addresses exist. Check the breakpoint list.\n")
 		return false
 	}
-	this.NotifyContinue <- true
+	if this.Process.WorkPid != 0 {
+		this.NotifyContinue <- true
+	}
 	this.Working = false
 	return true
 }

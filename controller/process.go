@@ -38,6 +38,7 @@ func CreateProcess(packageName string) (*Process, error) {
 	process.Symbols = make(map[uint64]string)
 	process.PackageName = packageName
 	process.Context = &ProcessContext{}
+	process.WorkPid = 0
 	err := process.GetExecPath()
 	if err != nil {
 		return &Process{}, err

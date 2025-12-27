@@ -35,6 +35,13 @@ func (this *LibraryInfo) ParseLibrary() error {
 	if this.LibName == "" {
 		return fmt.Errorf("ParseLibrary: No Library Name Specified.")
 	}
+	if this.LibPath != "" {
+		if _, err := os.Stat(this.LibPath); err != nil {
+            return err
+        }
+		this.RealFilePath = this.LibPath
+		return nil
+	}
 	if strings.HasPrefix(this.LibName, "/") {
         if _, err := os.Stat(this.LibName); err != nil {
             return err
