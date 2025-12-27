@@ -156,6 +156,13 @@ func WriteBytesToFile(filename string, data []byte) error {
     return file.Sync()
 }
 
+func WorkPointer(p uint64) uint64 {
+    if p & 0xFFFFFF0000000000 == 0xb400000000000000 {
+        return p & 0x00FFFFFFFFFFFFFF
+    }
+    return p
+}
+
 func GetExprValue(input string, ctx IContext) (uint64, error) {
     expr, err := govaluate.NewEvaluableExpression(input)
     if err != nil {
@@ -163,19 +170,19 @@ func GetExprValue(input string, ctx IContext) (uint64, error) {
     }
     parameters := make(map[string]interface{})
     for i := 0; i < 32; i += 1 {
-        parameters["w"+strconv.Itoa(i)] = ctx.GetReg(i)
-        parameters["W"+strconv.Itoa(i)] = ctx.GetReg(i)
+        parameters["w"+strconv.Itoa(i)] = WorkPointer(ctx.GetReg(i))
+        parameters["W"+strconv.Itoa(i)] = WorkPointer(ctx.GetReg(i))
     }
     for i := 32; i < 64; i += 1 {
-        parameters["x"+strconv.Itoa(i-32)] = ctx.GetReg(i)
-        parameters["X"+strconv.Itoa(i-32)] = ctx.GetReg(i)
+        parameters["x"+strconv.Itoa(i-32)] = WorkPointer(ctx.GetReg(i))
+        parameters["X"+strconv.Itoa(i-32)] = WorkPointer(ctx.GetReg(i))
     }
-    parameters["PC"] = ctx.GetPC()
-    parameters["pc"] = ctx.GetPC()
-    parameters["LR"] = ctx.GetLR()
-    parameters["lr"] = ctx.GetLR()
-    parameters["SP"] = ctx.GetSP()
-    parameters["sp"] = ctx.GetSP()
+    parameters["PC"] = WorkPointer(ctx.GetPC())
+    parameters["pc"] = WorkPointer(ctx.GetPC())
+    parameters["LR"] = WorkPointer(ctx.GetLR())
+    parameters["lr"] = WorkPointer(ctx.GetLR())
+    parameters["SP"] = WorkPointer(ctx.GetSP())
+    parameters["sp"] = WorkPointer(ctx.GetSP())
     result, err := expr.Evaluate(parameters)
     if err != nil {
         return 0, fmt.Errorf("Evaluate Error: %v", err)

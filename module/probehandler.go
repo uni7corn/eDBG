@@ -105,7 +105,8 @@ func (this *ProbeHandler) SetupManager(brks []*BreakPoint) error {
     
 
     if len(probes) == 0 {
-        fmt.Println("WARNING: No valid breakpoints set. eDBG may be unable to stop the program.")
+        fmt.Println("WARNING: No valid uprobe breakpoints set.")
+        // return fmt.Errorf("No valid reakpoints")
     }
 
     this.bpfManager = &manager.Manager{

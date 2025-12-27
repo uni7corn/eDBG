@@ -1,9 +1,11 @@
 <div align="center">
   <img src="logo.png"/>
+
   [![GitHub Release](https://img.shields.io/github/v/release/ShinoLeah/eDBG?style=flat-square)](https://github.com/ShinoLeah/eDBG/releases)
   [![License](https://img.shields.io/github/license/ShinoLeah/eDBG?style=flat-square)](LICENSE)
   [![Platform](https://img.shields.io/badge/platform-Android%20ARM64-red.svg?style=flat-square)](https://www.android.com/)
   ![GitHub Repo stars](https://img.shields.io/github/stars/ShinoLeah/eDBG)
+
 
   简体中文 | [English](README_EN.md)
 </div>

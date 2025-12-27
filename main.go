@@ -166,23 +166,24 @@ func main() {
 		fmt.Println("No Package Specified. Use -p com.package.name")
 		os.Exit(1)
 	}
-	if libName == "" {
-		fmt.Println("No Library Specified. Use -l libraryname.so")
-		os.Exit(1)
-	}
+	
 
 	process, err := controller.CreateProcess(packageName)
 	if err != nil {
 		fmt.Println("Create process error: ", err)
 		os.Exit(1)
 	}
-
-	library, err := controller.CreateLibrary(process, libName)
-	if err != nil {
-		fmt.Println("Create Library error: ", err)
+	if libName == "" {
+		fmt.Println("No Library Specified. Use -l libraryname.so")
 		os.Exit(1)
-	}
-	workedlib[libName] = library
+	} 
+	library, err := controller.CreateLibrary(process, libName)
+		if err != nil {
+			fmt.Println("Create Library error: ", err)
+			os.Exit(1)
+		}
+		workedlib[libName] = library
+	
 	btfFile := ""
 	if !utils.CheckConfig("CONFIG_DEBUG_INFO_BTF=y") {
 		btfFile = utils.FindBTFAssets()
@@ -290,14 +291,22 @@ func main() {
 	}
 
 	eventListener.SetupClient(client)
-
-	err = brkManager.Start(brkAddressInfos)
+	err = brkManager.Init()
 	if err != nil {
-		fmt.Println("Module start Failed: ", err)
-		fmt.Println("Possible reasons:\n\n1. Some instructions do not support uprobe. Try setting breakpoints on other instructions or use until to skip the current instruction.\n2. Breakpoints with invalid addresses exist. Check the breakpoint list.\n")
+		fmt.Println("Module init Failed: ", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Working on %s in %s. Press Ctrl+C to quit\n", libName, packageName)
+	if len(brkAddressInfos) > 0 {
+		err = brkManager.Start(brkAddressInfos)
+		if err != nil {
+			fmt.Println("Module start Failed: ", err)
+			fmt.Println("Possible reasons:\n\n1. Some instructions do not support uprobe. Try setting breakpoints on other instructions or use until to skip the current instruction.\n2. Breakpoints with invalid addresses exist. Check the breakpoint list.\n")
+			os.Exit(1)
+		}
+		fmt.Printf("Working on %s in %s. Press Ctrl+C to quit\n", libName, packageName)
+	} else {
+		fmt.Println("eDBG is not running. Use continue/run to start eDBG when breakpoints are ready.")
+	}
 
 	client.Run()
 	eventListener.Run()
